@@ -1,0 +1,16 @@
+node_modules/
+.turbo/
+dist/
+*.local
+.env
+.env.*
+!.env.example
+
+# Godot
+packages/godot/.godot/
+packages/godot/assets/audio/
+*.uid
+packages/godot/config.ini
+
+# Bun
+bun.lockb

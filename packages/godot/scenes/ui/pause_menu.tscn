@@ -1,0 +1,59 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/pause_menu.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/ui/options_panel.tscn" id="2"]
+
+[node name="PauseMenu" type="CanvasLayer"]
+layer = 50
+process_mode = 3
+script = ExtResource("1")
+visible = false
+
+[node name="Overlay" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.04, 0.03, 0.08, 0.82)
+mouse_filter = 0
+
+[node name="Panel" type="VBoxContainer" parent="."]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 280.0
+offset_right = 200.0
+offset_bottom = 640.0
+add_theme_constant_override("separation") = 20
+
+[node name="PausedLabel" type="Label" parent="Panel"]
+text = "Paused"
+theme_override_font_sizes/font_size = 52
+horizontal_alignment = 1
+modulate = Color(0.75, 0.75, 0.9, 1)
+
+[node name="Spacer" type="Control" parent="Panel"]
+custom_minimum_size = Vector2(0, 20)
+
+[node name="ResumeButton" type="Button" parent="Panel"]
+custom_minimum_size = Vector2(400, 60)
+text = "Resume"
+theme_override_font_sizes/font_size = 28
+
+[node name="OptionsButton" type="Button" parent="Panel"]
+custom_minimum_size = Vector2(400, 60)
+text = "Options"
+theme_override_font_sizes/font_size = 28
+
+[node name="QuitToTitleButton" type="Button" parent="Panel"]
+custom_minimum_size = Vector2(400, 60)
+text = "Quit to Title"
+theme_override_font_sizes/font_size = 28
+
+[node name="OptionsPanelRoot" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="OptionsPanel" parent="OptionsPanelRoot" instance=ExtResource("2")]
