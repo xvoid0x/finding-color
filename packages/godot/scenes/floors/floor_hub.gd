@@ -1,142 +1,201 @@
 extends Node2D
-## FloorHub - Container scene for a full floor.
+class_name FloorHub
+## FloorHub - Persistent floor with all rooms loaded simultaneously.
 ##
-## Generates the floor map, instantiates rooms as sub-scenes,
-## and manages door connections between them.
-## Guardian transitions between rooms by walking through doors.
-## Phone player sees the full minimap; guardian sees door indicators on HUD.
+## Rooms are placed adjacent to each other with open doorways.
+## Player physically walks between rooms through door gaps.
+## Only the current room is active (spawns enemies on first entry).
 ##
-## Each room is a RoomBase scene placed in a grid layout.
-## Only the current room is "active" — others are frozen (process_mode=DISABLED)
-## to keep performance clean.
+## One shared camera follows the guardian across the entire floor.
+## One shared HUD, pause menu, and post-process layer.
 
-const ROOM_SPACING := Vector2(2200, 0)  # Rooms laid out horizontally, off-screen
+const ROOM_WIDTH := 1920.0
+const ROOM_HEIGHT := 1080.0
+const CORRIDOR_SIZE := 120.0
+const WORLD_SCALE_X := (ROOM_WIDTH + CORRIDOR_SIZE) / 80.0  ## 25.5
+const WORLD_SCALE_Y := (ROOM_HEIGHT + CORRIDOR_SIZE) / 80.0  ## 15.0
 
-# Room scene pool — looked up by room type
-const ROOM_SCENES := {
-	"combat":       "res://scenes/rooms/room_combat.tscn",
-	"combat_elite": "res://scenes/rooms/room_combat_elite.tscn",
-	"chest":        "res://scenes/rooms/room_chest.tscn",
-	"shrine":       "res://scenes/rooms/room_shrine.tscn",
-	"exit":         "res://scenes/rooms/room_exit.tscn",
-}
-const ROOM_FALLBACK := "res://scenes/rooms/room_template.tscn"
-
-var _rooms: Dictionary = {}          # room_id -> Node2D (instantiated room)
-var _doors: Dictionary = {}          # "from_to" -> DoorNode
+var _rooms: Dictionary = {}  ## room_id -> RoomBase
 var _active_room_id: int = -1
+
+var _guardian: CharacterBody2D
+var _companion: Node2D
+var _camera: Camera2D
 
 
 func _ready() -> void:
 	add_to_group("floor_hub")
 
-	# Generate map if not already done (first floor of a run)
 	if FloorManager.current_map.is_empty():
 		FloorManager.generate_floor(GameManager.current_floor)
 
 	_build_rooms()
-	_enter_room(FloorManager.current_map.start_room)
+	_spawn_shared_entities()
+	_setup_post_process()
+	_activate_start_room()
 
-	FloorManager.room_entered.connect(_on_floor_manager_room_entered)
 
+# =============================================================================
+# Room Building
+# =============================================================================
 
 func _build_rooms() -> void:
-	"""Instantiate all rooms and position them off-screen in a grid."""
 	var map: Dictionary = FloorManager.current_map
 	for room_id in map.room_types:
 		var room_type: String = map.room_types[room_id]
-		var scene_path: String = ROOM_SCENES.get(room_type, ROOM_FALLBACK)
-
-		# Fall back to template if specific scene doesn't exist yet
-		if not ResourceLoader.exists(scene_path):
-			scene_path = ROOM_FALLBACK
-
-		var scene: PackedScene = load(scene_path)
-		var room: Node2D = scene.instantiate()
-
-		# Position rooms spaced out horizontally so they don't overlap
-		room.position = Vector2(room_id, 0) * ROOM_SPACING
-		room.set_meta("room_id", room_id)
-		room.set_meta("room_type", room_type)
-
-		# Start all rooms frozen — only active room processes
-		room.process_mode = Node.PROCESS_MODE_DISABLED
-
+		var room := _create_room(room_id, room_type)
+		var minimap_pos: Vector2 = map.positions.get(room_id, Vector2.ZERO)
+		room.position = Vector2(minimap_pos.x * WORLD_SCALE_X, minimap_pos.y * WORLD_SCALE_Y)
 		add_child(room)
 		_rooms[room_id] = room
 
-		print("[FLOOR_HUB] Built room %d (%s)" % [room_id, room_type])
+		var open_dirs: Array[String] = _get_connection_directions(room_id)
+		room.build_walls(open_dirs)
+
+		print("[FLOOR_HUB] Built room %d (%s) at %s | open: %s" % [
+			room_id, room_type, room.position, ",".join(open_dirs)
+		])
 
 
-func _enter_room(room_id: int) -> void:
-	"""Activate a room and freeze the previous one. Move camera to it."""
-	# Freeze previous room
-	if _active_room_id >= 0 and _rooms.has(_active_room_id):
-		_rooms[_active_room_id].process_mode = Node.PROCESS_MODE_DISABLED
+func _get_connection_directions(room_id: int) -> Array[String]:
+	var directions: Array[String] = []
+	var map := FloorManager.current_map
+	var room_pos: Vector2 = map.positions.get(room_id, Vector2.ZERO)
+	for other_id in map.connections.get(room_id, []):
+		var other_pos: Vector2 = map.positions.get(other_id, Vector2.ZERO)
+		var dx := other_pos.x - room_pos.x
+		var dy := other_pos.y - room_pos.y
+		if abs(dx) > abs(dy):
+			directions.append("right" if dx > 0 else "left")
+		else:
+			directions.append("down" if dy > 0 else "up")
+	return directions
 
+
+func _create_room(room_id: int, room_type: String) -> RoomBase:
+	var scene := load("res://scenes/rooms/room_template.tscn")
+	var room: RoomBase = scene.instantiate()
+	room.room_id = room_id
+	room.persistent_mode = true
+	match room_type:
+		"chest":
+			room.has_chest = true
+		"shrine":
+			room.has_shrine = true
+		"exit":
+			room.is_exit_room = true
+	return room
+
+
+# =============================================================================
+# Shared Entities (spawned once for the whole floor)
+# =============================================================================
+
+func _spawn_shared_entities() -> void:
+	## Guardian
+	var guardian_scene := load("res://characters/guardian/guardian.tscn")
+	_guardian = guardian_scene.instantiate()
+	_guardian.add_to_group("guardian")
+	add_child(_guardian)
+
+	## Companion
+	var companion_scene := load("res://characters/companion/companion.tscn")
+	_companion = companion_scene.instantiate()
+	_companion.add_to_group("companion")
+	add_child(_companion)
+	if _companion.has_method("initialize"):
+		_companion.initialize(_guardian)
+
+	## Camera
+	_camera = Camera2D.new()
+	_camera.position_smoothing_enabled = true
+	_camera.position_smoothing_speed = 8.0
+	add_child(_camera)
+	CameraShaker.register_camera(_camera)
+
+	## Pause menu
+	var pause_scene := load("res://scenes/ui/pause_menu.tscn")
+	var pause_menu: Node = pause_scene.instantiate()
+	add_child(pause_menu)
+
+	## HUD
+	if ResourceLoader.exists("res://scenes/ui/hud.tscn"):
+		var hud_scene := load("res://scenes/ui/hud.tscn")
+		var hud: Node = hud_scene.instantiate()
+		add_child(hud)
+
+
+func _setup_post_process() -> void:
+	## One shared desaturation post-process layer for the entire floor
+	var post_layer := CanvasLayer.new()
+	post_layer.layer = 10
+	post_layer.name = "PostProcessLayer"
+
+	var desat_rect := ColorRect.new()
+	desat_rect.anchors_preset = Control.PRESET_FULL_RECT
+	desat_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var shader_mat := ShaderMaterial.new()
+	shader_mat.shader = load("res://shaders/world_desaturate.gdshader")
+	desat_rect.material = shader_mat
+
+	post_layer.add_child(desat_rect)
+	add_child(post_layer)
+
+
+# =============================================================================
+# Room Activation
+# =============================================================================
+
+func _activate_start_room() -> void:
+	var start_id: int = FloorManager.current_map.start_room
+	_active_room_id = start_id
+	FloorManager.enter_room(start_id)
+	_rooms[start_id].activate()
+	_position_player_at_room(start_id)
+
+
+func _position_player_at_room(room_id: int) -> void:
+	var room: RoomBase = _rooms[room_id]
+	var spawn_pos: Vector2 = room.global_position + Vector2(960, 700)
+	_guardian.global_position = spawn_pos
+	_companion.global_position = spawn_pos + Vector2(-50, 30)
+
+	## Face room center
+	var to_center: Vector2 = room.global_position + Vector2(960, 540) - spawn_pos
+	if to_center.length() > 1.0:
+		_guardian._aim_dir = to_center.normalized()
+		_guardian._facing = _guardian._aim_dir
+
+
+func _process(_delta: float) -> void:
+	## Camera follows guardian
+	if _camera and _guardian:
+		_camera.global_position = _guardian.global_position
+
+	## Detect which room the player is in
+	var new_room_id := _get_room_at_position(_guardian.global_position)
+	if new_room_id != _active_room_id and new_room_id >= 0:
+		_on_player_entered_room(new_room_id)
+
+
+func _get_room_at_position(pos: Vector2) -> int:
+	for room_id in _rooms:
+		var room: RoomBase = _rooms[room_id]
+		var local_pos: Vector2 = pos - room.global_position
+		if local_pos.x >= 0 and local_pos.x <= ROOM_WIDTH \
+			and local_pos.y >= 0 and local_pos.y <= ROOM_HEIGHT:
+			return room_id
+	return -1
+
+
+func _on_player_entered_room(room_id: int) -> void:
 	_active_room_id = room_id
-	var room: Node2D = _rooms[room_id]
-
-	# Unfreeze
-	room.process_mode = Node.PROCESS_MODE_INHERIT
-
-	# Move camera to this room's position
-	_pan_camera_to(room.position)
-
-	# Notify FloorManager (triggers fog-of-war + phone map update)
 	FloorManager.enter_room(room_id)
-
-	# Respawn guardian + companion in this room if they exist
-	_reposition_characters(room)
-
-
-func _reposition_characters(room: Node2D) -> void:
-	"""Move guardian and companion to this room's spawn point."""
-	var spawn_pos: Vector2 = room.position + Vector2(960, 700)  # default centre-bottom
-
-	# Try room's own spawn marker first
-	var spawn_marker := room.get_node_or_null("GuardianSpawn")
-	if spawn_marker:
-		spawn_pos = spawn_marker.global_position
-
-	var guardian := get_tree().get_first_node_in_group("guardian")
-	var companion := get_tree().get_first_node_in_group("companion")
-
-	if guardian:
-		guardian.global_position = spawn_pos
-	if companion:
-		companion.global_position = spawn_pos + Vector2(-50, 30)
+	_rooms[room_id].activate()
+	print("[FLOOR_HUB] Player entered room %d" % room_id)
 
 
-func _pan_camera_to(target_pos: Vector2) -> void:
-	"""Tween camera to the new room's centre."""
-	var cam := get_tree().get_first_node_in_group("main_camera") as Camera2D
-	if not cam:
-		return
-	var room_centre := target_pos + Vector2(960, 540)
-	var tween := create_tween()
-	tween.tween_property(cam, "global_position", room_centre, 0.4)\
-		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-
-
-# =============================================================================
-# Door interaction — called by exit_door.gd when guardian walks through
-# =============================================================================
-
-func on_door_used(from_room_id: int, to_room_id: int) -> void:
-	"""Guardian walked through a door. Transition to the connected room."""
-	if not FloorManager.can_enter_room(to_room_id):
-		push_warning("[FLOOR_HUB] Door used to non-adjacent room: %d → %d" % [from_room_id, to_room_id])
-		return
-
-	var to_type: String = FloorManager.current_map.room_types.get(to_room_id, "combat")
-	if to_type == "exit":
-		# This is the exit room — floor is done
-		GameManager.exit_room()
-		return
-
-	_enter_room(to_room_id)
-
-
-func _on_floor_manager_room_entered(_room_id: int, _room_type: String) -> void:
-	pass  # Future: trigger room entry animations, music change, etc.
+## Legacy compatibility — not used in persistent mode
+func on_door_used(_from_room_id: int, _to_room_id: int) -> void:
+	pass
