@@ -1,0 +1,87 @@
+name: Finding Colour CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/godot/**'
+      - 'packages/shared/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/godot/**'
+      - 'packages/shared/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: true
+        type: choice
+        options: [smoke, simulate]
+      floors:
+        description: 'Simulation floors'
+        required: false
+        type: number
+        default: 5
+      seed:
+        description: 'Random seed'
+        required: false
+        type: number
+        default: 0
+
+jobs:
+  smoke-test:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'smoke' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: ./.github/actions/setup-godot
+        with:
+          version: '4.6.2'
+
+      - name: Smoke Test
+        run: |
+          godot --headless --path packages/godot --ai-smoke
+
+  simulate:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'simulate' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: ./.github/actions/setup-godot
+        with:
+          version: '4.6.2'
+
+      - name: Simulation Run
+        run: |
+          godot --headless --path packages/godot \
+            --ai-simulate \
+            --ai-floors ${{ inputs.floors }} \
+            --ai-seed ${{ inputs.seed }}
+
+  syntax-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: ./.github/actions/setup-godot
+        with:
+          version: '4.6.2'
+
+      - name: Check GDScript Syntax
+        run: |
+          # Check all .gd files for parse errors
+          for f in $(find packages/godot -name '*.gd' -not -path '*/addons/*'); do
+            echo "Checking: $f"
+            godot --headless --path packages/godot --check-only --script "$f" 2>&1 | \
+              grep -E "PARSE ERROR|SCRIPT ERROR" && exit 1 || true
+          done
+          echo "All scripts parse clean"

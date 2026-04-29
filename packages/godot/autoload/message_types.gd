@@ -24,10 +24,6 @@ const TOPIC_CLIENT := "client"  # Phone publishes here
 # Server message builders (Godot -> Phone)
 # ---------------------------------------------------------------------------
 
-static func make_pause(paused: bool) -> Dictionary:
-	return {"type": "paused", "paused": paused}
-
-
 static func make_state(
 	floor: int,
 	guardian_hp: float,

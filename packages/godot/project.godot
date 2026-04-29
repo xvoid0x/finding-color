@@ -28,6 +28,7 @@ CrackTextureGen="*res://autoload/crack_texture_gen.gd"
 CameraShaker="*res://autoload/camera_shaker.gd"
 HitstopManager="*res://autoload/hitstop_manager.gd"
 FloorManager="*res://autoload/floor_manager.gd"
+AiRunEngine="*res://autoload/ai_run_engine.gd"
 
 [display]
 

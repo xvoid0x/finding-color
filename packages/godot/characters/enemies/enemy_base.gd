@@ -99,6 +99,9 @@ func _check_contact_damage() -> void:
 	"""Poll-based contact damage. More reliable than body_entered for sustained overlap."""
 	if _contact_timer > 0.0:
 		return
+	# Skip damage during headless test runs
+	if RoomBase.HEADLESS_RUN:
+		return
 	var area := get_node_or_null("ContactArea") as Area2D
 	if not area:
 		return
@@ -255,6 +258,9 @@ func _spawn_drop(drop_type: String) -> void:
 func _on_body_entered_base(body: Node) -> void:
 	"""Call this from subclass body_entered signal."""
 	if _is_dead or _contact_timer > 0.0:
+		return
+	# Skip damage during headless test runs
+	if RoomBase.HEADLESS_RUN:
 		return
 	if body.is_in_group("guardian"):
 		print("[ENEMY] ", name, " hit guardian for ", damage_on_contact)

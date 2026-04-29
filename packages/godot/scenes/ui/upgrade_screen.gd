@@ -52,6 +52,7 @@ var _selected: bool = false
 
 
 func _ready() -> void:
+	add_to_group("upgrade_screen")
 	_floor_label.text = "Floor %d cleared" % GameManager.current_floor
 	_offered_upgrades = _pick_three_upgrades()
 

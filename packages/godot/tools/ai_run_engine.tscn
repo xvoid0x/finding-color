@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/ai_run_engine.gd" id="1"]
+
+[node name="AiRunEngineLegacy" type="Node"]
+script = ExtResource("1")
