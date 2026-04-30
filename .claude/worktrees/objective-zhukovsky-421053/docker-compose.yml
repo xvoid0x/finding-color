@@ -1,0 +1,15 @@
+services:
+  phone:
+    build:
+      context: .
+      dockerfile: packages/phone/Dockerfile
+    ports:
+      - "5174:5173"
+    volumes:
+      # Live reload — mount source so Vite HMR works
+      - ./packages/phone/src:/app/packages/phone/src
+      - ./packages/phone/index.html:/app/packages/phone/index.html
+      - ./packages/phone/public:/app/packages/phone/public
+      - ./packages/shared/src:/app/packages/shared/src
+    environment:
+      - NODE_ENV=development

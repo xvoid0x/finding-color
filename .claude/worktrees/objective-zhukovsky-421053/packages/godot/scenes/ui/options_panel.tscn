@@ -1,0 +1,275 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scenes/ui/options_panel.gd" id="1"]
+
+[node name="OptionsPanel" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+script = ExtResource("1")
+
+[node name="PanelBg" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.04, 0.10, 0.97)
+mouse_filter = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 160
+theme_override_constants/margin_right = 160
+theme_override_constants/margin_top = 60
+theme_override_constants/margin_bottom = 80
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ContentVBox" type="VBoxContainer" parent="MarginContainer/ScrollContainer"]
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(760, 0)
+theme_override_constants/separation = 10
+
+[node name="OptionsTitle" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox"]
+text = "Options"
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+modulate = Color(0.75, 0.75, 0.92, 1)
+
+[node name="Spacer0" type="Control" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 10)
+
+[node name="DisplayHeader" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox"]
+text = "DISPLAY"
+theme_override_font_sizes/font_size = 16
+modulate = Color(0.4, 0.4, 0.6, 1)
+
+[node name="Sep0" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentVBox"]
+
+[node name="FullscreenRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="FullscreenLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/FullscreenRow"]
+size_flags_horizontal = 3
+text = "Fullscreen"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="FullscreenToggle" type="CheckButton" parent="MarginContainer/ScrollContainer/ContentVBox/FullscreenRow"]
+theme_override_font_sizes/font_size = 24
+
+[node name="Spacer1" type="Control" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 8)
+
+[node name="AudioHeader" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox"]
+text = "AUDIO"
+theme_override_font_sizes/font_size = 16
+modulate = Color(0.4, 0.4, 0.6, 1)
+
+[node name="Sep1" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentVBox"]
+
+[node name="MasterVolumeRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="MasterLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/MasterVolumeRow"]
+custom_minimum_size = Vector2(220, 0)
+text = "Master Volume"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="MasterSlider" type="HSlider" parent="MarginContainer/ScrollContainer/ContentVBox/MasterVolumeRow"]
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 0.0
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="MasterValueLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/MasterVolumeRow"]
+custom_minimum_size = Vector2(48, 0)
+text = "100"
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="SFXVolumeRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="SFXLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/SFXVolumeRow"]
+custom_minimum_size = Vector2(220, 0)
+text = "SFX Volume"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="SFXSlider" type="HSlider" parent="MarginContainer/ScrollContainer/ContentVBox/SFXVolumeRow"]
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 0.0
+max_value = 1.0
+step = 0.05
+value = 1.0
+
+[node name="SFXValueLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/SFXVolumeRow"]
+custom_minimum_size = Vector2(48, 0)
+text = "100"
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="MusicVolumeRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="MusicLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/MusicVolumeRow"]
+custom_minimum_size = Vector2(220, 0)
+text = "Music Volume"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="MusicSlider" type="HSlider" parent="MarginContainer/ScrollContainer/ContentVBox/MusicVolumeRow"]
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 0.0
+max_value = 1.0
+step = 0.05
+value = 0.8
+
+[node name="MusicValueLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/MusicVolumeRow"]
+custom_minimum_size = Vector2(48, 0)
+text = "80"
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Spacer2" type="Control" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 8)
+
+[node name="GameplayHeader" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox"]
+text = "GAMEPLAY"
+theme_override_font_sizes/font_size = 16
+modulate = Color(0.4, 0.4, 0.6, 1)
+
+[node name="Sep2" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentVBox"]
+
+[node name="ScreenShakeRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="ShakeLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/ScreenShakeRow"]
+size_flags_horizontal = 3
+text = "Screen Shake"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="ShakeOptionButton" type="OptionButton" parent="MarginContainer/ScrollContainer/ContentVBox/ScreenShakeRow"]
+custom_minimum_size = Vector2(160, 48)
+theme_override_font_sizes/font_size = 22
+
+[node name="RumbleRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="RumbleLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/RumbleRow"]
+size_flags_horizontal = 3
+text = "Controller Rumble"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="RumbleToggle" type="CheckButton" parent="MarginContainer/ScrollContainer/ContentVBox/RumbleRow"]
+theme_override_font_sizes/font_size = 24
+
+[node name="Spacer3" type="Control" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 8)
+
+[node name="AccessHeader" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox"]
+text = "ACCESSIBILITY"
+theme_override_font_sizes/font_size = 16
+modulate = Color(0.4, 0.4, 0.6, 1)
+
+[node name="Sep3" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentVBox"]
+
+[node name="FlashRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="FlashLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/FlashRow"]
+size_flags_horizontal = 3
+text = "Reduce Flashing"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="FlashToggle" type="CheckButton" parent="MarginContainer/ScrollContainer/ContentVBox/FlashRow"]
+theme_override_font_sizes/font_size = 24
+
+[node name="Spacer4" type="Control" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 8)
+
+[node name="PhoneHeader" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox"]
+text = "PHONE"
+theme_override_font_sizes/font_size = 16
+modulate = Color(0.4, 0.4, 0.6, 1)
+
+[node name="Sep4" type="HSeparator" parent="MarginContainer/ScrollContainer/ContentVBox"]
+
+[node name="RoomCodeRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+theme_override_constants/separation = 16
+
+[node name="RoomCodeLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/RoomCodeRow"]
+size_flags_horizontal = 3
+text = "Room Code"
+theme_override_font_sizes/font_size = 24
+vertical_alignment = 1
+
+[node name="RoomCodeValue" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox/RoomCodeRow"]
+custom_minimum_size = Vector2(160, 0)
+text = "----"
+theme_override_font_sizes/font_size = 24
+horizontal_alignment = 2
+vertical_alignment = 1
+modulate = Color(0.6, 1.0, 0.7, 1)
+
+[node name="ReconnectRow" type="HBoxContainer" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 52)
+
+[node name="ReconnectButton" type="Button" parent="MarginContainer/ScrollContainer/ContentVBox/ReconnectRow"]
+size_flags_horizontal = 3
+custom_minimum_size = Vector2(0, 48)
+text = "Reconnect Phone"
+theme_override_font_sizes/font_size = 22
+
+[node name="Spacer5" type="Control" parent="MarginContainer/ScrollContainer/ContentVBox"]
+custom_minimum_size = Vector2(0, 16)
+
+[node name="CreditsLabel" type="Label" parent="MarginContainer/ScrollContainer/ContentVBox"]
+text = "Finding Colour — prototype build"
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+modulate = Color(0.35, 0.35, 0.5, 1)
+
+[node name="CloseButton" type="Button" parent="."]
+anchors_preset = 7
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+offset_top = -68.0
+offset_bottom = -8.0
+custom_minimum_size = Vector2(0, 58)
+text = "Back"
+theme_override_font_sizes/font_size = 26

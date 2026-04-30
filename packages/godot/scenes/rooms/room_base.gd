@@ -48,6 +48,18 @@ func _get_stalker_scene() -> PackedScene:
 	var fallback: Variant = _scenes.shadow_lurker
 	if fallback is PackedScene: return fallback
 	return null
+func _get_lurker_scene() -> PackedScene:
+	var s: Variant = _scenes.lurker
+	if s is PackedScene: return s
+	return _get_shadow_lurker_scene()
+func _get_crawler_scene() -> PackedScene:
+	var s: Variant = _scenes.crawler
+	if s is PackedScene: return s
+	return _get_shadow_walker_scene()
+func _get_sploder_scene() -> PackedScene:
+	var s: Variant = _scenes.sploder
+	if s is PackedScene: return s
+	return _get_swarmer_scene()
 func _get_breakable_scene() -> PackedScene:
 	return _scenes.breakable
 
@@ -67,6 +79,9 @@ func _load_scenes() -> void:
 	_scenes.swarmer = s if s else _scenes.shadow_walker
 	var t: PackedScene = _load("res://characters/enemies/stalker.tscn")
 	_scenes.stalker = t if t else _scenes.shadow_lurker
+	_scenes.lurker      = _load("res://characters/enemies/lurker.tscn")
+	_scenes.crawler     = _load("res://characters/enemies/crawler.tscn")
+	_scenes.sploder     = _load("res://characters/enemies/sploder.tscn")
 	_scenes.breakable     = _load("res://scenes/interactables/breakable.tscn")
 
 
@@ -79,6 +94,12 @@ func _load(path: String) -> PackedScene:
 # =============================================================================
 
 func _setup_persistent_mode() -> void:
+	## Hide legacy ColorRect background/floor — TileMap handles all flooring
+	var bg := get_node_or_null("Background")
+	if bg: bg.visible = false
+	var floor := get_node_or_null("Floor")
+	if floor: floor.visible = false
+	
 	## Remove the legacy ExitDoor — persistent floor has no interactable doors
 	var door := get_node_or_null("Interactables/ExitDoor")
 	if door:

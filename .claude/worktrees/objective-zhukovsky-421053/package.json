@@ -1,0 +1,19 @@
+{
+  "name": "finding-colour",
+  "private": true,
+  "packageManager": "bun@1.3.8",
+  "workspaces": [
+    "packages/shared",
+    "packages/phone"
+  ],
+  "scripts": {
+    "dev": "turbo dev --filter=phone",
+    "build": "turbo build",
+    "gen": "turbo run gen",
+    "typecheck": "turbo typecheck",
+    "clean": "turbo clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  }
+}

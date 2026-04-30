@@ -20,7 +20,21 @@ var entered_from_room_id: int = -1
 var discovered_rooms: Array[int] = []
 var cleared_rooms: Array[int] = []
 
-const ROOM_COUNTS := {"early": 4, "mid": 5, "late": 6}
+## Rooms per floor modeled on Binding of Isaac's chapter system.
+## Each "chapter" is 3 floors: intro (floor 1), medium (floor 2), climax (floor 3).
+## Chapter 1: 7-8 rooms for learning, Chapter 2: 9-10 for depth, Chapter 3: 11-12.
+## Boss floors (3, 6, 9) are slightly larger.
+const ROOM_COUNTS := {
+	1: 7,  # Chapter 1, floor 1 — intro
+	2: 8,  # Chapter 1, floor 2 — escalation
+	3: 9,  # Chapter 1 boss floor
+	4: 9,  # Chapter 2, floor 1
+	5: 10, # Chapter 2, floor 2
+	6: 11, # Chapter 2 boss floor
+	7: 11, # Chapter 3, floor 1
+	8: 12, # Chapter 3, floor 2
+	9: 13, # Chapter 3 boss floor
+}
 
 
 func _ready() -> void:
@@ -47,11 +61,12 @@ func generate_floor(floor_number: int) -> Dictionary:
 
 
 func _get_room_count(floor_number: int) -> int:
-	if floor_number <= 3:
-		return ROOM_COUNTS["early"]
-	elif floor_number <= 6:
-		return ROOM_COUNTS["mid"]
-	return ROOM_COUNTS["late"]
+	"""Return rooms-per-floor using the Isaac-inspired chapter table.
+	Floors beyond the table continue scaling at +1 per floor.
+	"""
+	if ROOM_COUNTS.has(floor_number):
+		return ROOM_COUNTS[floor_number]
+	return ROOM_COUNTS[9] + (floor_number - 9)
 
 
 func _build_grid_map(room_count: int, floor_number: int) -> Dictionary:
@@ -125,23 +140,49 @@ func _build_grid_map(room_count: int, floor_number: int) -> Dictionary:
 	## Actually, the above algorithm always connects to existing room,
 	## so ALL rooms are connected. Good.
 	
-	## 4. Find the room furthest from start → that's the exit
+		## 4. Find the room furthest from start → that's the exit (boss room)
 	var exit_id := _find_furthest_room(connections, 0)
 	
-	## 5. Assign room types
+	## 5. Room type assignment — Isaac-inspired:
+	##   - Start (room 0)
+	##   - Exit (farthest from start = the boss/depth room)
+	##   - Dead-ends get special rooms (chest / shrine)
+	##   - Main path = combat
+	var dead_ends: Array = []
+	var mid_path: Array = []
 	for id in id_to_grid:
 		var conn_count: int = connections[id].size()
-		if id == 0:
-			room_types[id] = "start"
-		elif id == exit_id:
-			room_types[id] = "exit"
-		elif conn_count == 1 and id != exit_id:
-			## Dead end = optional reward room
-			room_types[id] = "chest" if rng.randi() % 2 == 0 else "shrine"
+		if id == 0 or id == exit_id:
+			continue
+		if conn_count == 1:
+			dead_ends.append(id)
 		else:
-			## Combat room (with elite chance on later floors)
-			var is_elite := floor_number >= 3 and rng.randf() < 0.25
-			room_types[id] = "combat_elite" if is_elite else "combat"
+			mid_path.append(id)
+	
+	# Guarantee at least one chest and one shrine if dead-ends exist
+	var needs_chest: bool = true
+	var needs_shrine: bool = true
+	var spec_idx: int = 0
+	for id in dead_ends:
+		if needs_chest:
+			room_types[id] = "chest"
+			needs_chest = false
+		elif needs_shrine:
+			room_types[id] = "shrine"
+			needs_shrine = false
+		else:
+			# Extra dead-ends alternate
+			room_types[id] = ["chest", "shrine"][spec_idx % 2]
+		spec_idx += 1
+	
+	# Start and exit
+	room_types[0] = "start"
+	room_types[exit_id] = "exit"
+	
+	# Main path = combat (with elite chance on later floors)
+	for id in mid_path:
+		var is_elite := floor_number >= 3 and rng.randf() < 0.25
+		room_types[id] = "combat_elite" if is_elite else "combat"
 	
 	## 6. Convert grid positions to world positions (for minimap)
 	## Normalise so min x,y = 0
