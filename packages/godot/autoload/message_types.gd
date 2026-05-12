@@ -32,7 +32,7 @@ static func make_state(
 	event_type: String,
 	enemies_alive: int,
 	companion_anchored: bool,
-	dreamer_fragments: int = 0
+	dreamer_fragments: int
 ) -> Dictionary:
 	return {
 		"type": "state",
@@ -94,6 +94,13 @@ static func make_companion(state: String, hp_buffer: int = -1) -> Dictionary:
 	if hp_buffer >= 0:
 		msg["hp_buffer"] = hp_buffer
 	return msg
+
+
+static func make_pause(paused: bool) -> Dictionary:
+	return {
+		"type": "paused",
+		"paused": paused,
+	}
 
 
 # ---------------------------------------------------------------------------

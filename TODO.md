@@ -3,16 +3,15 @@
 ## Now
 - [ ] Make smoke/sim thresholds configurable (room counts, enemy counts, breakable counts)
 - [ ] Wire FloorManager seed to global seed for deterministic CI runs
-- [ ] Art pass — replace ColorRect placeholders with real sprites
 - [ ] Boss prototype: The Mirror
+- [ ] Generate enemy sprites via Pixellab (6 types: shadow_walker, shadow_lurker, swarmer, stalker, crawler, sploder)
 
 ## Soon
 - [ ] 5-7 room floors as design evolves (tune ROOM_COUNTS)
 - [ ] More enemy spawn diversity per room type (tune room_template.gd)
 - [ ] More breakable clusters, chests, shrines (tune room_base.gd)
-- [ ] Companion breathing-idle animation from Pixellab
-- [ ] Guardian walk/idle/attack animations from Pixellab
 - [ ] Greyscale desaturation shader + PointLight2D colour bloom in real rooms
+- [ ] Companion more animations (walk, take_hit, retreat)
 
 ## Later
 - [ ] Meta-progression: Dream Fragments, Deep Shards
@@ -33,3 +32,7 @@
 - [x] Upgrade screen with 6 upgrade types
 - [x] Phone event lifecycle (heal, chest_unlock, power_attack, boss_phase skeleton)
 - [x] All debug keys (1-6)
+- [x] Art pass — object sprites wired (breakable pot, chest, shrine, health/fragment pickups)
+- [x] Companion sprites downloaded and wired (8-dir breathing-idle + rotation)
+- [x] Guardian spritesheets confirmed working (6 animations, 8 directions)
+- [x] Floor/wall tileset applied (flagstone + void tendril Wang tileset)

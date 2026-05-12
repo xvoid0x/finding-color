@@ -6,6 +6,9 @@ var _guardian: Node2D = null
 
 
 func _on_ready() -> void:
+	# Load rotation sprites
+	_setup_rotation_sprites("res://assets/characters/enemy_shadow_walker/rotations/")
+
 	# Find guardian in scene
 	await get_tree().process_frame
 	_guardian = get_tree().get_first_node_in_group("guardian")

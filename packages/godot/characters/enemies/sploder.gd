@@ -26,6 +26,9 @@ func _on_ready() -> void:
 	contact_cooldown = 0.6
 	target_priority = TargetPriority.GUARDIAN
 
+	# Load rotation sprites
+	_setup_rotation_sprites("res://assets/characters/enemy_sploder/rotations/")
+
 	await get_tree().process_frame
 	_guardian = get_tree().get_first_node_in_group("guardian")
 
@@ -86,14 +89,10 @@ func _start_explosion_sequence() -> void:
 	GameManager.stat_enemies_killed += 1
 
 	# Telegraph: flash bright, grow slightly
-	var body := $Sprite2D/Body as ColorRect
-	if body:
+	if _sprite:
 		var tween := create_tween()
-		tween.tween_property(body, "color", Color(1.0, 0.9, 0.3, 1.0), EXPLOSION_DELAY * 0.5)
-		tween.parallel().tween_property(body, "offset_left", -24.0, EXPLOSION_DELAY)
-		tween.parallel().tween_property(body, "offset_right", 24.0, EXPLOSION_DELAY)
-		tween.parallel().tween_property(body, "offset_top", -24.0, EXPLOSION_DELAY)
-		tween.parallel().tween_property(body, "offset_bottom", 24.0, EXPLOSION_DELAY)
+		tween.tween_property(_sprite, "modulate", Color(1.0, 0.9, 0.3, 1.0), EXPLOSION_DELAY * 0.5)
+		tween.parallel().tween_property(_sprite, "scale", Vector2(1.5, 1.5), EXPLOSION_DELAY)
 
 	# Light ramps up
 	if _light:
@@ -127,30 +126,7 @@ func _detonate() -> void:
 	HitstopManager.kill()
 	CameraShaker.shake(12.0, 0.25)
 
-	# Check nearby entities for damage
-	var query := PhysicsShapeQueryParameters2D.new()
-	var circle := CircleShape2D.new()
-	circle.radius = EXPLOSION_RADIUS
-	query.shape = circle
-	query.transform = Transform2D(0, global_position)
-	query.collision_mask = 1  # Guardian + companion layer
-	query.exclude = [self]
-
-	var space_state := get_world_2d().direct_space_state
-	if space_state:
-		var results := space_state.intersect_shape(query)
-		for result in results:
-			var body := result.collider as Node
-			if not body:
-				continue
-			if body.is_in_group("guardian"):
-				if body.has_method("take_hit"):
-					body.take_hit(1.0, global_position)
-			elif body.is_in_group("companion"):
-				if body.has_method("take_damage"):
-					body.take_damage(1.0)
-
-	# Also check by distance for simplicity (fallback)
+	# Deal AOE damage using group-based distance check (more reliable than physics-space queries)
 	var guardian := get_tree().get_first_node_in_group("guardian")
 	if guardian and global_position.distance_to(guardian.global_position) <= EXPLOSION_RADIUS:
 		if guardian.has_method("take_hit"):

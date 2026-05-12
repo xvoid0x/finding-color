@@ -58,7 +58,8 @@ static func make_state(
 \tevent_active: bool,
 \tevent_type: String,
 \tenemies_alive: int,
-\tcompanion_anchored: bool
+\tcompanion_anchored: bool,
+\tdreamer_fragments: int
 ) -> Dictionary:
 \treturn {
 \t\t"type": "state",
@@ -69,6 +70,7 @@ static func make_state(
 \t\t"event_type": event_type if event_type != "" else null,
 \t\t"enemies_alive": enemies_alive,
 \t\t"companion_anchored": companion_anchored,
+\t\t"dreamer_fragments": dreamer_fragments,
 \t}
 
 
@@ -119,6 +121,13 @@ static func make_companion(state: String, hp_buffer: int = -1) -> Dictionary:
 \tif hp_buffer >= 0:
 \t\tmsg["hp_buffer"] = hp_buffer
 \treturn msg
+
+
+static func make_pause(paused: bool) -> Dictionary:
+\treturn {
+\t\t"type": "paused",
+\t\t"paused": paused,
+\t}
 
 
 # ---------------------------------------------------------------------------

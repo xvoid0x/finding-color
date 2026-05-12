@@ -7,7 +7,7 @@ var _guardian_nearby: bool = false
 var _opened: bool = false
 var _enabled: bool = false
 
-@onready var _visual: ColorRect = $ChestVisual
+@onready var _visual: Sprite2D = $ChestVisual
 @onready var _interact_area: Area2D = $InteractArea
 
 
@@ -38,8 +38,8 @@ func _trigger_unlock() -> void:
 		companion.anchor_to(self)
 		# Brief visual pulse
 		var tween := create_tween()
-		tween.tween_property(_visual, "color", Color(0.6, 0.5, 0.2, 1.0), 0.15)
-		tween.tween_property(_visual, "color", Color(0.25, 0.2, 0.15, 1.0), 0.15)
+		tween.tween_property(_visual, "modulate", Color(1.6, 1.4, 0.8, 1.0), 0.15)
+		tween.tween_property(_visual, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.15)
 
 
 func _on_companion_freed() -> void:
@@ -49,7 +49,8 @@ func _on_companion_freed() -> void:
 	GameManager.stat_chests_opened += 1
 	# Open visual: gold flash
 	var tween := create_tween()
-	tween.tween_property(_visual, "color", Color(0.9, 0.75, 0.1, 1.0), 0.25)
+	tween.tween_property(_visual, "modulate", Color(2.0, 1.8, 0.5, 1.0), 0.1)
+	tween.tween_property(_visual, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.3)
 	# TODO: Spawn loot drops at position
 
 

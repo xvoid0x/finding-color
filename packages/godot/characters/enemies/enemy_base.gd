@@ -4,8 +4,13 @@ extends CharacterBody2D
 ## Handles: health, crack shader, death shatter, damage dealing to guardian.
 ## Extend this for each enemy type.
 
+signal died()
+
 ## Target priority — who does this enemy chase?
 enum TargetPriority { GUARDIAN, COMPANION, NEAREST }
+
+# 8-direction sprite constants
+const ENEMY_DIRECTIONS := ["south", "south-west", "west", "north-west", "north", "north-east", "east", "south-east"]
 
 @export var max_hp: float = 1.0
 @export var move_speed: float = 80.0
@@ -16,6 +21,11 @@ enum TargetPriority { GUARDIAN, COMPANION, NEAREST }
 var hp: float = 1.0
 var _contact_timer: float = 0.0
 var _is_dead: bool = false
+
+# Rotation sprite support
+var _rotation_textures: Dictionary = {}
+var _use_rotation_sprites: bool = false
+var _last_sprite_dir: String = "south"
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _collision: CollisionShape2D = $CollisionShape2D
@@ -38,8 +48,9 @@ func _ready() -> void:
 
 
 func _assign_crack_texture() -> void:
-	"""Assign the procedural crack texture and body colour to the shader material.
-	Also ensures Sprite2D has a white texture so the shader has something to render."""
+	"""Assign the procedural crack texture to the shader material.
+	With real rotation sprites: loads the texture as-is, body_color set to white.
+	With placeholder: creates a white texture and uses body_rect.color."""
 	if not _sprite or not _sprite.material:
 		return
 	if not _sprite.material is ShaderMaterial:
@@ -50,23 +61,29 @@ func _assign_crack_texture() -> void:
 	if CrackTextureGen:
 		mat.set_shader_parameter("crack_texture", CrackTextureGen.get_texture())
 
-	# Read body colour from ColorRect child of Sprite2D (placeholder visual)
+	# Hide body ColorRect — shader handles visual either way
 	var body_rect := _sprite.get_node_or_null("Body") as ColorRect
+
+	if _use_rotation_sprites:
+		# Real sprites: body_color was set to white in _setup_rotation_sprites
+		# Load the south-facing texture so there's something on spawn
+		if _rotation_textures.has("south"):
+			_sprite.texture = _rotation_textures["south"]
+		if body_rect:
+			body_rect.visible = false
+		return
+
+	# Placeholder mode: use body_rect color + white texture
 	if body_rect:
 		mat.set_shader_parameter("body_color", body_rect.color)
-		# Resize Sprite2D to match ColorRect so shader covers it
-		var rect_size := body_rect.size
-		# ColorRect uses offset_left/top/right/bottom — compute actual size
 		var half_w: float = (body_rect.offset_right - body_rect.offset_left) * 0.5
 		var half_h: float = (body_rect.offset_bottom - body_rect.offset_top) * 0.5
 		var w: int = int(half_w * 2.0)
 		var h: int = int(half_h * 2.0)
 		if w > 0 and h > 0:
-			# Create a white texture the size of the body rect
 			var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 			img.fill(Color.WHITE)
 			_sprite.texture = ImageTexture.create_from_image(img)
-			# Hide the ColorRect — shader renders the colour now
 			body_rect.visible = false
 
 
@@ -100,7 +117,7 @@ func _check_contact_damage() -> void:
 	if _contact_timer > 0.0:
 		return
 	# Skip damage during headless test runs
-	if RoomBase.HEADLESS_RUN:
+	if GameManager.headless_run:
 		return
 	var area := get_node_or_null("ContactArea") as Area2D
 	if not area:
@@ -120,6 +137,7 @@ func _physics_process(delta: float) -> void:
 	if _is_dead:
 		return
 	_on_physics_process(delta)
+	_update_sprite_direction()
 	_check_contact_damage()
 	# Update facing indicator
 	if _facing_indicator and velocity.length() > 10.0:
@@ -185,6 +203,9 @@ func _die() -> void:
 	HitstopManager.kill()
 	CameraShaker.shake(10.0, 0.2)
 
+	# Emit died signal so RoomBase can track kills reliably
+	died.emit()
+
 	# Shatter effect -- particles + screen flash
 	_play_shatter_effect()
 
@@ -247,6 +268,48 @@ func _on_death_drops() -> void:
 		_spawn_drop("dream_fragment")
 
 
+# =============================================================================
+# Rotation Sprite Support
+# =============================================================================
+
+## Load 8-direction rotation PNGs from base_path.
+## base_path should be like 'res://assets/characters/enemy_swarmer/rotations/'
+## Call from subclass _on_ready() before the base class runs _assign_crack_texture.
+func _setup_rotation_sprites(base_path: String) -> void:
+	_rotation_textures.clear()
+	for dir in ENEMY_DIRECTIONS:
+		var path: String = base_path + dir + ".png"
+		if ResourceLoader.exists(path):
+			_rotation_textures[dir] = load(path) as Texture2D
+		else:
+			push_warning("[ENEMY] Missing rotation sprite: ", path)
+
+	if _rotation_textures.size() > 0:
+		_use_rotation_sprites = true
+		if _sprite and _sprite.material is ShaderMaterial:
+			(_sprite.material as ShaderMaterial).set_shader_parameter("body_color", Color.WHITE)
+		# Set initial texture
+		if _rotation_textures.has("south"):
+			_sprite.texture = _rotation_textures["south"]
+
+
+func _vector_to_direction(vec: Vector2) -> String:
+	return DirectionUtils.vector_to_direction(vec, _last_sprite_dir)
+
+
+func _update_sprite_direction() -> void:
+	"""Swap sprite texture based on velocity direction.
+	Called automatically from _physics_process."""
+	if not _use_rotation_sprites or not _sprite:
+		return
+	var dir := _vector_to_direction(velocity)
+	if dir == _last_sprite_dir:
+		return
+	_last_sprite_dir = dir
+	if _rotation_textures.has(dir):
+		_sprite.texture = _rotation_textures[dir]
+
+
 func _spawn_drop(drop_type: String) -> void:
 	# Placeholder -- instantiate drop scene at position
 	# TODO: Load actual drop scenes
@@ -260,7 +323,7 @@ func _on_body_entered_base(body: Node) -> void:
 	if _is_dead or _contact_timer > 0.0:
 		return
 	# Skip damage during headless test runs
-	if RoomBase.HEADLESS_RUN:
+	if GameManager.headless_run:
 		return
 	if body.is_in_group("guardian"):
 		print("[ENEMY] ", name, " hit guardian for ", damage_on_contact)

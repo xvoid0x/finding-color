@@ -26,8 +26,6 @@ var _enemies_alive: int = 0
 var _guardian: CharacterBody2D = null
 var _companion: Node2D = null
 
-static var HEADLESS_RUN: bool = false  ## Set by AiRunEngine in headless mode to skip enemy damage
-
 # --- Lazily-loaded scenes ---
 var _scenes: Dictionary = {}
 
@@ -86,7 +84,14 @@ func _load_scenes() -> void:
 
 
 func _load(path: String) -> PackedScene:
-	return load(path) if ResourceLoader.exists(path) else null
+	if not ResourceLoader.exists(path):
+		push_warning("[ROOM] Missing scene: %s" % path)
+		return null
+	var scene: Variant = load(path)
+	if not scene is PackedScene:
+		push_error("[ROOM] Failed to load: %s" % path)
+		return null
+	return scene as PackedScene
 
 
 # =============================================================================
@@ -266,11 +271,8 @@ func _spawn_enemy_at(scene: PackedScene, pos: Vector2) -> void:
 	enemy.position = pos
 	add_child(enemy)
 	_enemies_alive += 1
-	## Use tree_exited to count deaths, but check if it was alive first
-	if enemy.has_signal("died"):
-		enemy.died.connect(_on_enemy_died)
-	else:
-		enemy.tree_exited.connect(_on_enemy_died)
+	## EnemyBase emits died signal on kill — reliable, no tree_exited fallback needed
+	enemy.died.connect(_on_enemy_died)
 
 
 func _on_enemy_died() -> void:
@@ -341,14 +343,28 @@ func _setup_chest() -> void:
 
 
 func _setup_shrine() -> void:
-	## Shrine nodes are not in the template yet — placeholder
-	pass
+	var shrine := get_node_or_null("Interactables/Shrine")
+	if not shrine:
+		return
+	shrine.visible = true
+	shrine.process_mode = Node.PROCESS_MODE_INHERIT
+	shrine.set_meta("object_type", "shrine")
+	# Shrines count as cleared immediately — no enemies
+	_room_cleared = true
+	FloorManager.on_room_cleared(room_id)
 
 
 func _place_exit_trapdoor() -> void:
 	var area := Area2D.new()
 	area.name = "ExitTrapdoor"
-	area.position = Vector2(960, 540)
+	# Center of the room — sized for boss arenas too
+	var parent_hub := get_parent()
+	var room_w: float = FloorHub.ROOM_W if parent_hub is FloorHub else 1920.0
+	var room_h: float = FloorHub.ROOM_H if parent_hub is FloorHub else 1080.0
+	var room_origin := Vector2.ZERO
+	if parent_hub is FloorHub:
+		room_origin = position
+	area.position = room_origin + Vector2(room_w / 2, room_h * 0.85)
 	
 	var shape := CollisionShape2D.new()
 	var rect := RectangleShape2D.new()

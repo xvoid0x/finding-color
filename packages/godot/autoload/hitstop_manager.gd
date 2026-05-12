@@ -70,11 +70,13 @@ func _begin(duration: float) -> void:
 
 	_active = true
 	Engine.time_scale = 0.0
-	print("[HITSTOP] Freeze %.0fms" % (_duration * 1000))
+	if OS.is_debug_build():
+		print("[HITSTOP] Freeze %.0fms" % (_duration * 1000))
 
 
 func _end() -> void:
 	_active = false
 	_duration = 0.0
 	Engine.time_scale = _restore_scale
-	print("[HITSTOP] Released → scale=", _restore_scale)
+	if OS.is_debug_build():
+		print("[HITSTOP] Released → scale=", _restore_scale)

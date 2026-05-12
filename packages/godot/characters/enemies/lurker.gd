@@ -32,6 +32,9 @@ func _on_ready() -> void:
 	damage_on_contact = 0.5
 	target_priority = TargetPriority.GUARDIAN
 
+	# Load rotation sprites
+	_setup_rotation_sprites("res://assets/characters/enemy_lurker/rotations/")
+
 	await get_tree().process_frame
 	_guardian = get_tree().get_first_node_in_group("guardian")
 	_circle_angle = randf() * TAU
@@ -114,10 +117,8 @@ func _fire_projectile() -> void:
 
 
 func _flash_color(color: Color, duration: float) -> void:
-	"""Brief flash of the body ColorRect."""
-	var body := $Sprite2D/Body as ColorRect
-	if body:
-		var original := body.color
+	"""Brief flash of the sprite."""
+	if _sprite:
 		var tween := create_tween()
-		tween.tween_property(body, "color", color, duration * 0.5)
-		tween.tween_property(body, "color", original, duration * 0.5)
+		tween.tween_property(_sprite, "modulate", color, duration * 0.5)
+		tween.tween_property(_sprite, "modulate", Color.WHITE, duration * 0.5)

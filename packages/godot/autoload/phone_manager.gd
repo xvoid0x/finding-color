@@ -34,6 +34,11 @@ var _event_window_timer: float = 0.0
 var _event_window_duration: float = 0.0
 var _event_active: bool = false
 
+# --- Mock Mode (headless AI tests: in-memory queue instead of Ably) ---
+var mock_mode: bool = false
+var _mock_outgoing: Array[Dictionary] = []
+var _mock_enabled_logged: bool = false
+
 # --- Difficulty ---
 var _performance_score: float = 1.0
 const PERF_ADJUST_AMOUNT: float = 0.05
@@ -69,6 +74,9 @@ func _process(delta: float) -> void:
 		_event_window_timer -= delta
 		if _event_window_timer <= 0.0:
 			_expire_active_event()
+
+	if mock_mode:
+		return  # No WebSocket or HTTP in mock mode
 
 	# Poll WebSocket every frame
 	_poll_ws()
@@ -239,6 +247,12 @@ func _on_peer_left(data: Dictionary) -> void:
 # =============================================================================
 
 func _send_to_all(data: Dictionary) -> void:
+	if mock_mode:
+		if not _mock_enabled_logged:
+			print("[PHONE] Mock mode active -- queuing outgoing message")
+			_mock_enabled_logged = true
+		_mock_outgoing.append(data.duplicate(true))
+		return
 	if _api_key.is_empty() or _channel_name.is_empty():
 		return
 	_publish_queue.append(data)
@@ -487,6 +501,81 @@ func _find_nearest_interactable(target_type: String) -> Node2D:
 				nearest = c
 	return nearest
 
+
+
+# =============================================================================
+# Mock Mode Interface (used by AiRunEngine)
+# =============================================================================
+
+func set_mock_mode(enabled: bool) -> void:
+	"""Enable/disable mock transport. Must be set before triggering events."""
+	mock_mode = enabled
+	_publish_queue.clear()
+	_mock_outgoing.clear()
+	_mock_enabled_logged = false
+	_http_busy = false
+	if enabled:
+		print("[PHONE] Mock mode enabled - phone transport replaced with in-memory queue")
+
+
+func mock_pop_outgoing() -> Dictionary:
+	"""Pop the oldest outgoing message. Returns empty dict if none."""
+	if _mock_outgoing.is_empty():
+		return {}
+	return _mock_outgoing.pop_front()
+
+
+func mock_peek_outgoing() -> Dictionary:
+	"""Peek at the oldest outgoing message without removing it."""
+	if _mock_outgoing.is_empty():
+		return {}
+	return _mock_outgoing[0]
+
+
+func mock_clear_outgoing() -> void:
+	"""Clear all queued outgoing messages."""
+	_mock_outgoing.clear()
+
+
+func mock_has_outgoing() -> bool:
+	return not _mock_outgoing.is_empty()
+
+
+func mock_outgoing_count() -> int:
+	return _mock_outgoing.size()
+
+
+func mock_inject_join(name: String = "TestPlayer") -> void:
+	"""Simulate a phone player joining. Fires phone_player_joined signal."""
+	if not mock_mode:
+		push_warning("[PHONE] mock_inject_join called but mock_mode is off")
+		return
+	var data := {
+		"type": "join",
+		"name": name,
+		"peer_id": "mock-phone-peer",
+	}
+	_on_peer_joined(data)
+
+
+func mock_inject_event_response(event_type: String, score: int, max_score: int) -> void:
+	"""Simulate a phone player completing an event minigame."""
+	if not mock_mode:
+		push_warning("[PHONE] mock_inject_event_response called but mock_mode is off")
+		return
+	receive_event_response(0, event_type, score, max_score)
+
+
+func mock_inject_direct_event(type: String, payload: Dictionary) -> void:
+	"""Inject any client message directly into the dispatch pipeline."""
+	if not mock_mode:
+		push_warning("[PHONE] mock_inject_direct_event called but mock_mode is off")
+		return
+	var envelope := {
+		"name": "client",
+		"data": payload,
+	}
+	_dispatch_client_message(envelope)
 
 # =============================================================================
 # Helpers

@@ -1,6 +1,9 @@
 extends Node
 ## GameManager - Run state, floor tracking, time scale control.
 
+## Set by AiRunEngine in headless mode to skip enemy damage/contact
+static var headless_run: bool = false
+
 # --- Run State ---
 var current_floor: int = 0
 var run_active: bool = false
@@ -70,8 +73,6 @@ const STATE_PUSH_INTERVAL: float = 2.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	EventBus.guardian_damaged.connect(_on_guardian_damaged)
-	EventBus.guardian_healed.connect(_on_guardian_healed)
 	EventBus.room_cleared.connect(_on_room_cleared)
 	EventBus.phone_event_triggered.connect(_on_phone_event_triggered)
 	EventBus.phone_event_completed.connect(_on_phone_event_completed)
@@ -264,14 +265,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			print("[DEBUG] Current room: ", FloorManager.current_room_id)
 			print("[DEBUG] Discovered: ", FloorManager.discovered_rooms)
 			print("[DEBUG] Cleared: ", FloorManager.cleared_rooms)
-
-
-func _on_guardian_damaged(_amount: float, _source: String) -> void:
-	pass  # Hearts lost tracked in damage_guardian directly
-
-
-func _on_guardian_healed(_amount: float) -> void:
-	pass
 
 
 func _on_phone_event_triggered(_event_type: String) -> void:

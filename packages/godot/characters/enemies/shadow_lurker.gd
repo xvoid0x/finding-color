@@ -19,8 +19,6 @@ const WINDUP_DURATION: float = 0.35
 var _dash_direction: Vector2 = Vector2.ZERO
 var _guardian: Node2D = null
 
-@onready var _body_rect: ColorRect = $Sprite2D/Body
-
 
 
 func _on_ready() -> void:
@@ -28,6 +26,9 @@ func _on_ready() -> void:
 	hp = 2.0
 	damage_on_contact = 1.0
 	move_speed = 60.0
+
+	# Load rotation sprites (shares shadow walker sprites)
+	_setup_rotation_sprites("res://assets/characters/enemy_shadow_lurker/rotations/")
 
 	await get_tree().process_frame
 	_guardian = get_tree().get_first_node_in_group("guardian")
@@ -97,11 +98,11 @@ func _on_physics_process(delta: float) -> void:
 func _start_windup() -> void:
 	_lurker_state = LurkerState.WINDUP
 	_windup_timer = WINDUP_DURATION
-	# Telegraph: brighten body + pulse light
-	if _body_rect:
+	# Telegraph: brighten sprite + pulse light
+	if _sprite:
 		var tween := create_tween()
-		tween.tween_property(_body_rect, "color", Color(1.0, 0.8, 0.6, 1.0), 0.15)
-		tween.tween_property(_body_rect, "color", Color(0.95, 0.35, 0.1, 1.0), 0.2)
+		tween.tween_property(_sprite, "modulate", Color(1.0, 0.8, 0.6, 1.0), 0.15)
+		tween.tween_property(_sprite, "modulate", Color.WHITE, 0.2)
 	if _light:
 		_light.energy = 2.0
 

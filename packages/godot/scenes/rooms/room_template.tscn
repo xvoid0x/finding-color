@@ -1,14 +1,19 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scenes/rooms/room_template.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/objects/chest.png" id="2"]
 [ext_resource type="Script" path="res://scenes/rooms/exit_door.gd" id="3"]
 [ext_resource type="Script" path="res://scenes/interactables/chest.gd" id="4"]
+[ext_resource type="Texture2D" path="res://assets/objects/shrine.png" id="5"]
 
 [sub_resource type="RectangleShape2D" id="9"]
 size = Vector2(60, 80)
 
 [sub_resource type="RectangleShape2D" id="10"]
 size = Vector2(120, 100)
+
+[sub_resource type="RectangleShape2D" id="11"]
+size = Vector2(80, 80)
 
 [node name="RoomTemplate" type="Node2D"]
 script = ExtResource("1")
@@ -45,14 +50,26 @@ shape = SubResource("9")
 position = Vector2(400, 400)
 script = ExtResource("4")
 
-[node name="ChestVisual" type="ColorRect" parent="Interactables/Chest"]
-offset_left = -20.0
-offset_top = -16.0
-offset_right = 20.0
-offset_bottom = 16.0
-color = Color(0.25, 0.2, 0.15, 1)
+[node name="ChestVisual" type="Sprite2D" parent="Interactables/Chest"]
+texture = ExtResource("2")
+centered = true
+scale = Vector2(0.8, 0.8)
 
 [node name="InteractArea" type="Area2D" parent="Interactables/Chest"]
 
 [node name="InteractShape" type="CollisionShape2D" parent="Interactables/Chest/InteractArea"]
 shape = SubResource("10")
+
+[node name="Shrine" type="Node2D" parent="Interactables"]
+visible = false
+process_mode = 4
+
+[node name="ShrineVisual" type="Sprite2D" parent="Interactables/Shrine"]
+texture = ExtResource("5")
+centered = true
+scale = Vector2(0.9, 0.9)
+
+[node name="InteractArea" type="Area2D" parent="Interactables/Shrine"]
+
+[node name="InteractShape" type="CollisionShape2D" parent="Interactables/Shrine/InteractArea"]
+shape = SubResource("11")

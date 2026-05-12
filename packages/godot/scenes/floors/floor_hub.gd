@@ -10,8 +10,10 @@ class_name FloorHub
 ##   • Spawning shared entities (guardian, companion, camera, HUD)
 ##   • Tracking which room the player is in and activating rooms on first entry
 
-const ROOM_W: float = 1920.0
-const ROOM_H: float = 1080.0
+## Normal room dimensions
+## Boss floors override these via FloorManager.current_map
+static var ROOM_W: float = 1920.0
+static var ROOM_H: float = 1080.0
 const WALL_THICK: float = 160.0
 const TILE_SIZE: int = 128
 
@@ -26,6 +28,14 @@ func _ready() -> void:
 	add_to_group("floor_hub")
 	if FloorManager.current_map.is_empty():
 		FloorManager.generate_floor(GameManager.current_floor)
+	
+	# Boss floor: override room dimensions for large arena
+	var map: Dictionary = FloorManager.current_map
+	if map.get("boss_floor", false):
+		ROOM_W = map.get("boss_tiles_x", 45) * TILE_SIZE  # 5760
+		ROOM_H = map.get("boss_tiles_y", 24) * TILE_SIZE  # 3072
+		print("[FLOOR_HUB] Boss arena: %.0fx%.0f" % [ROOM_W, ROOM_H])
+	
 	_build_tilemap()
 	_build_wall_tilemap()
 	_build_rooms()
@@ -443,7 +453,8 @@ func _activate_start_room() -> void:
 	_active_room_id = start_id
 	FloorManager.enter_room(start_id)
 	_rooms[start_id].activate()
-	_position_player_in_room(start_id, Vector2(960, 700))
+	var spawn_pos := Vector2(ROOM_W / 2, ROOM_H * 0.65)
+	_position_player_in_room(start_id, spawn_pos)
 
 
 func _position_player_in_room(room_id: int, local_pos: Vector2) -> void:

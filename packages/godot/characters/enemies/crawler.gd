@@ -22,6 +22,9 @@ func _on_ready() -> void:
 	contact_cooldown = 1.0
 	target_priority = TargetPriority.GUARDIAN
 
+	# Load rotation sprites
+	_setup_rotation_sprites("res://assets/characters/enemy_crawler/rotations/")
+
 	await get_tree().process_frame
 	_guardian = get_tree().get_first_node_in_group("guardian")
 
@@ -34,14 +37,8 @@ func _on_ready() -> void:
 			shape.radius = 18.0
 			contact_shape.shape = shape
 
-	# Crawler is bigger — make it visually distinct
-	var body := $Sprite2D/Body as ColorRect
-	if body:
-		body.offset_left = -16.0
-		body.offset_top = -16.0
-		body.offset_right = 16.0
-		body.offset_bottom = 16.0
-		body.color = Color(0.3, 0.4, 0.1, 1.0)  # muddy green
+	# Crawler is bigger — scale up the sprite
+	_sprite.scale = Vector2(1.25, 1.25)
 
 
 func _on_physics_process(delta: float) -> void:
@@ -79,8 +76,7 @@ func take_damage(amount: float, knockback_dir: Vector2 = Vector2.ZERO) -> void:
 
 func _flash_armor_hit() -> void:
 	"""Brief visual feedback when armor blocks half damage."""
-	var body := $Sprite2D/Body as ColorRect
-	if body:
+	if _sprite:
 		var tween := create_tween()
-		tween.tween_property(body, "color", Color(0.8, 0.8, 0.1, 1.0), 0.1)
-		tween.tween_property(body, "color", Color(0.3, 0.4, 0.1, 1.0), 0.2)
+		tween.tween_property(_sprite, "modulate", Color(0.8, 0.8, 0.1, 1.0), 0.1)
+		tween.tween_property(_sprite, "modulate", Color.WHITE, 0.2)

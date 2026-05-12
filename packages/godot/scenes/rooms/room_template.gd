@@ -80,6 +80,10 @@ func _spawn_enemies() -> void:
 	_spawn_hazards(rtype, floor_num)
 	_spawn_pools(rtype, floor_num)
 	_spawn_cracked_floors(rtype, floor_num)
+	_spawn_sorrow_drips(rtype, floor_num)
+	_spawn_push_walls(rtype, floor_num)
+	_spawn_wailing_statues(rtype, floor_num)
+	_spawn_clockwork_sentries(rtype, floor_num)
 
 	if rtype == "exit":
 		_spawn_exit_room(floor_num)
@@ -145,9 +149,11 @@ func _spawn_exit_room(floor_num: int) -> void:
 		count = 5
 
 	# Boss floors (3, 6, 9) — exit room is the boss fight
-	# TODO: spawn boss scene here
 	if floor_num % 3 == 0:
-		# For now, heavier guard
+		if MirrorBossScene:
+			_spawn_boss()
+			return
+		# Fallback to heavier guard
 		count += 2
 
 	var positions: Array[Vector2] = [
@@ -217,6 +223,36 @@ func _weighted_pick(pool: Array) -> Array:
 	return pool.back() if pool else []
 
 
+
+# =============================================================================
+# Boss Spawning
+# =============================================================================
+
+func _spawn_boss() -> void:
+	"""Spawn the boss for the current floor."""
+	if not MirrorBossScene:
+		return
+	var boss: Node2D = MirrorBossScene.instantiate()
+	# Center the boss in the room (accounts for boss arena sizing)
+	var room_center := Vector2(FloorHub.ROOM_W / 2, FloorHub.ROOM_H * 0.35)
+	boss.position = room_center
+	# Tell the boss the room bounds so wander range scales
+	if boss.has_method("set_room_bounds"):
+		boss.set_room_bounds(FloorHub.ROOM_W, FloorHub.ROOM_H)
+	add_child(boss)
+	_enemies_alive += 1
+	if boss.has_signal("boss_died"):
+		boss.boss_died.connect(_on_boss_defeated)
+	print("[ROOM] Spawned Mirror Boss in exit room")
+
+
+func _on_boss_defeated() -> void:
+	if not is_inside_tree() or _room_cleared:
+		return
+	_enemies_alive -= 1
+	if _enemies_alive <= 0:
+		_on_room_cleared()
+
 # =============================================================================
 # In-Room Hazards
 # =============================================================================
@@ -224,6 +260,11 @@ func _weighted_pick(pool: Array) -> Array:
 const GeyserScene: PackedScene = preload("res://scenes/hazards/shadow_geyser.tscn")
 const PoolScene: PackedScene = preload("res://scenes/hazards/shadow_pool.tscn")
 const CrackedFloorScene: PackedScene = preload("res://scenes/hazards/cracked_floor.tscn")
+const SorrowDripScene: PackedScene = preload("res://scenes/hazards/sorrow_drip.tscn")
+const PushWallScene: PackedScene = preload("res://scenes/hazards/push_wall.tscn")
+const WailingStatueScene: PackedScene = preload("res://scenes/hazards/wailing_statue.tscn")
+const ClockworkSentryScene: PackedScene = preload("res://scenes/hazards/clockwork_sentry.tscn")
+const MirrorBossScene: PackedScene = preload("res://scenes/bosses/mirror_boss.tscn")
 
 
 func _spawn_hazards(rtype: String, floor_num: int) -> void:
@@ -434,3 +475,197 @@ func _spawn_cracked_floor_at(pos: Vector2) -> void:
 	cracked.position = pos
 	add_child(cracked)
 	print("[ROOM] Placed cracked floor at %v" % [pos])
+
+
+# =============================================================================
+# Sorrow Drips
+# =============================================================================
+
+func _spawn_sorrow_drips(rtype: String, floor_num: int) -> void:
+	"""Ceiling hanging hazard — drops projectiles periodically.
+	Always present from floor 1 as a teaching hazard.
+	"""
+	if rtype == "chest" or rtype == "shrine":
+		return
+	if not SorrowDripScene:
+		return
+	
+	var count: int = _pick_drip_count(rtype, floor_num)
+	if count <= 0:
+		return
+	
+	var positions: Array[Vector2] = [
+		Vector2(400, 120),
+		Vector2(700, 120),
+		Vector2(1200, 120),
+		Vector2(1500, 120),
+	]
+	positions.shuffle()
+	
+	for i in range(mini(count, positions.size())):
+		var pos: Vector2 = positions[i]
+		# Slight x offset so they don't look grid-aligned
+		pos.x += _rng.randf_range(-40, 40)
+		_spawn_sorrow_drip_at(pos)
+	
+	print("[ROOM] Spawned %d sorrow drip(s) in %s room" % [count, rtype])
+
+
+func _pick_drip_count(rtype: String, floor_num: int) -> int:
+	var base: int = _rng.randi_range(0, 2)
+	if rtype == "combat_elite" or rtype == "exit":
+		base += _rng.randi_range(0, 1)
+	if floor_num >= 5:
+		base += _rng.randi_range(0, 1)
+	return mini(base, 4)
+
+
+func _spawn_sorrow_drip_at(pos: Vector2) -> void:
+	if not SorrowDripScene:
+		return
+	var drip: Area2D = SorrowDripScene.instantiate()
+	drip.position = pos
+	add_child(drip)
+
+
+# =============================================================================
+# Push Walls
+# =============================================================================
+
+func _spawn_push_walls(rtype: String, floor_num: int) -> void:
+	"""Wall that pushes inward after a delay, shrinking the room.
+	Introduced later (floor 3+) since it changes room geometry.
+	"""
+	if rtype == "chest" or rtype == "shrine":
+		return
+	if not PushWallScene:
+		return
+	
+	var spawn: bool = false
+	if floor_num >= 3:
+		spawn = _rng.randf() < 0.3
+	if rtype == "combat_elite" or rtype == "exit":
+		spawn = spawn or _rng.randf() < 0.25
+	if rtype == "exit" and floor_num >= 5:
+		spawn = true
+	
+	if not spawn:
+		return
+	
+	var wall: StaticBody2D = PushWallScene.instantiate()
+	# Wall positions itself based on random orientation in its _ready()
+	add_child(wall)
+	print("[ROOM] Placed push wall in %s room" % rtype)
+
+
+# =============================================================================
+# Wailing Statues
+# =============================================================================
+
+func _spawn_wailing_statues(rtype: String, floor_num: int) -> void:
+	"""Statue that fires scream cone periodically.
+	Appears from floor 2+ alongside geysers.
+	"""
+	if rtype == "chest" or rtype == "shrine":
+		return
+	if not WailingStatueScene:
+		return
+	
+	var count: int = _pick_statue_count(rtype, floor_num)
+	if count <= 0:
+		return
+	
+	# Statues spawn at room edges facing inward
+	var positions: Array[Vector2] = [
+		Vector2(200, 540),   # left edge
+		Vector2(1720, 540),  # right edge
+		Vector2(960, 200),   # top
+		Vector2(960, 880),   # bottom
+	]
+	positions.shuffle()
+	
+	for i in range(mini(count, positions.size())):
+		var pos: Vector2 = positions[i]
+		# Shift slightly along the edge so they don't overlap walls
+		if pos.y == 540:
+			pos.y += _rng.randf_range(-100, 100)
+		else:
+			pos.x += _rng.randf_range(-100, 100)
+		_spawn_wailing_statue_at(pos)
+	
+	print("[ROOM] Spawned %d wailing statue(s) in %s room" % [count, rtype])
+
+
+func _pick_statue_count(rtype: String, floor_num: int) -> int:
+	if floor_num <= 1:
+		return 0
+	var base: int
+	if floor_num <= 3:
+		base = _rng.randi_range(0, 1)
+	else:
+		base = _rng.randi_range(0, 2)
+	if rtype == "combat_elite" or rtype == "exit":
+		base += _rng.randi_range(0, 1)
+	return mini(base, 3)
+
+
+func _spawn_wailing_statue_at(pos: Vector2) -> void:
+	if not WailingStatueScene:
+		return
+	var statue: Area2D = WailingStatueScene.instantiate()
+	statue.position = pos
+	add_child(statue)
+
+
+# =============================================================================
+# Clockwork Sentries
+# =============================================================================
+
+func _spawn_clockwork_sentries(rtype: String, floor_num: int) -> void:
+	"""Rotating turret — fires line projectiles. Only vulnerable from behind.
+	Introduced floor 4+ as a significant obstacle.
+	"""
+	if rtype == "chest" or rtype == "shrine":
+		return
+	if not ClockworkSentryScene:
+		return
+	
+	var count: int = _pick_sentry_count(rtype, floor_num)
+	if count <= 0:
+		return
+	
+	var positions: Array[Vector2] = [
+		Vector2(500, 400),
+		Vector2(1420, 400),
+		Vector2(500, 700),
+		Vector2(1420, 700),
+	]
+	positions.shuffle()
+	
+	for i in range(mini(count, positions.size())):
+		var pos: Vector2 = positions[i]
+		pos += Vector2(_rng.randf_range(-30, 30), _rng.randf_range(-30, 30))
+		_spawn_clockwork_sentry_at(pos)
+	
+	print("[ROOM] Spawned %d clockwork sentry(s) in %s room" % [count, rtype])
+
+
+func _pick_sentry_count(rtype: String, floor_num: int) -> int:
+	if floor_num <= 3:
+		return 0
+	var base: int
+	if floor_num <= 5:
+		base = _rng.randi_range(0, 1)
+	else:
+		base = _rng.randi_range(1, 2)
+	if rtype == "combat_elite" or rtype == "exit":
+		base += _rng.randi_range(0, 1)
+	return mini(base, 3)
+
+
+func _spawn_clockwork_sentry_at(pos: Vector2) -> void:
+	if not ClockworkSentryScene:
+		return
+	var sentry: Area2D = ClockworkSentryScene.instantiate()
+	sentry.position = pos
+	add_child(sentry)

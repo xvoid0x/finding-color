@@ -10,23 +10,26 @@ extends Area2D
 @export var pickup_type: String = "fragment"
 @export var amount: int = 1
 
-const LIFETIME: float = 12.0          # Auto-award after this many seconds
+const LIFETIME: float = 12.0           # Auto-award after this many seconds
 const FLOAT_HEIGHT: float = 14.0       # How far it bobs upward on spawn
 const COLLECT_FLASH_DURATION: float = 0.08
 
 var _collected: bool = false
 var _lifetime_timer: float = 0.0
 
-@onready var _visual: ColorRect = $Visual
+var _texture_heart: Texture2D = preload("res://assets/objects/health_pickup.png")
+var _texture_fragment: Texture2D = preload("res://assets/objects/fragment_pickup.png")
+
+@onready var _visual: Sprite2D = $Visual
 @onready var _collision: CollisionShape2D = $CollisionShape2D
 
 
 func _ready() -> void:
-	# Colour by type
+	# Texture by type
 	if pickup_type == "fragment":
-		_visual.color = Color(0.35, 0.65, 1.0)   # cool blue — dream fragment
+		_visual.texture = _texture_fragment
 	else:
-		_visual.color = Color(0.9, 0.2, 0.3)      # red — heart
+		_visual.texture = _texture_heart
 
 	# Float up from spawn point
 	var tween := create_tween()
@@ -65,8 +68,8 @@ func _collect() -> void:
 
 	# Flash and disappear
 	var tween := create_tween()
-	tween.tween_property(_visual, "color", Color(1.0, 1.0, 1.0, 1.0), COLLECT_FLASH_DURATION)
-	tween.tween_property(_visual, "self_modulate:a", 0.0, 0.1)
+	tween.tween_property(_visual, "modulate", Color(1.0, 1.0, 1.0, 1.0), COLLECT_FLASH_DURATION)
+	tween.tween_property(_visual, "modulate:a", 0.0, 0.1)
 	tween.tween_callback(queue_free)
 
 	# Award
@@ -75,6 +78,5 @@ func _collect() -> void:
 			GameManager.award_dreamer_fragments(amount)
 			print("[PICKUP] Fragment x", amount, " collected")
 		"heart":
-			# Each 'amount' unit = 0.5 hearts
 			GameManager.heal_guardian(0.5 * amount)
 			print("[PICKUP] Heart fragment collected (+", 0.5 * amount, " HP)")

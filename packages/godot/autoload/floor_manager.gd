@@ -13,6 +13,9 @@ signal room_cleared(room_id: int)
 signal fog_of_war_updated(discovered: Array[int])
 signal all_rooms_cleared()
 
+const TILE_SIZE: int = 128
+
+
 # --- Map State ---
 var current_map: Dictionary = {}
 var current_room_id: int = 0
@@ -81,15 +84,24 @@ func _build_grid_map(room_count: int, floor_number: int) -> Dictionary:
 		6. Rooms with only 1 connection (dead ends) → chest or shrine
 		7. Main path rooms → combat (with occasional elite)
 	
+	Boss floors (floor % 3 == 0): single large room, no exploration.
+	
 	Returns: {
 		"room_count": int,
 		"start_room": int,
 		"exit_room": int,
 		"connections": {room_id: [room_id, ...]},      -- undirected adjacency
 		"room_types": {room_id: String},
-		"grid_pos": {room_id: Vector2i}              -- grid coordinates
+		"grid_pos": {room_id: Vector2i},             -- grid coordinates
+		"boss_floor": bool,                          -- single large boss room
+		"boss_room_tiles_x": int,                    -- boss room width in tiles
+		"boss_room_tiles_y": int,                    -- boss room height in tiles
 	}
 	"""
+	
+	# Boss floors: single large room
+	if _is_boss_floor(floor_number):
+		return _build_boss_map(floor_number)
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	
@@ -204,6 +216,34 @@ func _build_grid_map(room_count: int, floor_number: int) -> Dictionary:
 		"connections": connections,
 		"room_types": room_types,
 		"grid_pos": grid_pos,
+	}
+
+
+func _is_boss_floor(floor_number: int) -> bool:
+	return floor_number > 0 and floor_number % 3 == 0
+
+
+func _build_boss_map(floor_number: int) -> Dictionary:
+	"""Build a single-room boss floor.
+	
+	One large room (exit type) that spans the entire floor.
+	Player spawns here, fights the boss, trapdoor opens on kill.
+	
+	Room dimensions: 3x normal tiles (5760x3072 px) for arena space.
+	"""
+	var boss_tiles_x := 45  # 3x normal 15-tile rooms
+	var boss_tiles_y := 24  # 3x normal 8-tile rooms
+	return {
+		"room_count": 1,
+		"start_room": 0,
+		"exit_room": 0,
+		"connections": {0: []},
+		"room_types": {0: "exit"},
+		"grid_pos": {0: Vector2i.ZERO},
+		"boss_floor": true,
+		"boss_tiles_x": boss_tiles_x,
+		"boss_tiles_y": boss_tiles_y,
+		"tile_size": TILE_SIZE,
 	}
 
 

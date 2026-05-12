@@ -24,7 +24,7 @@ var _broken: bool = false
 # Preload the pickup scene — set in _ready so we don't hard-fail on missing asset
 var _pickup_scene: PackedScene = null
 
-@onready var _visual: ColorRect = $Visual  # placeholder — swap for Sprite2D when art exists
+@onready var _visual: Sprite2D = $Visual
 @onready var _collision: CollisionShape2D  = $CollisionShape2D
 
 
@@ -47,8 +47,8 @@ func smash(source: String = "attack") -> void:
 
 	# Visual break: flash white then vanish
 	var tween := create_tween()
-	tween.tween_property(_visual, "color", Color(1.0, 1.0, 1.0, 1.0), 0.05)
-	tween.tween_property(_visual, "self_modulate:a", 0.0, 0.12)
+	tween.tween_property(_visual, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.05)
+	tween.tween_property(_visual, "modulate:a", 0.0, 0.12)
 	tween.tween_callback(queue_free)
 
 	# Juice: light hitstop + small shake

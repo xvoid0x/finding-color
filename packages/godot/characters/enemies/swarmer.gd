@@ -23,6 +23,9 @@ func _on_ready() -> void:
 	contact_cooldown = 0.6
 	target_priority = TargetPriority.GUARDIAN  # switches dynamically
 
+	# Load rotation sprites
+	_setup_rotation_sprites("res://assets/characters/enemy_swarmer/rotations/")
+
 	await get_tree().process_frame
 	_companion = get_tree().get_first_node_in_group("companion")
 
@@ -55,23 +58,22 @@ func _on_process(_delta: float) -> void:
 func _flash_aggro_switch(new_priority: TargetPriority) -> void:
 	"""Brief bright flash when switching target."""
 	var light := $PointLight2D as PointLight2D
-	var body := $Sprite2D/Body as ColorRect
 	if new_priority == TargetPriority.COMPANION:
 		# Flash amber toward companion
-		if body:
+		if _sprite:
 			var tween := create_tween()
-			tween.tween_property(body, "color", Color(1.0, 0.7, 0.2, 1.0), 0.1)
-			tween.tween_property(body, "color", Color(0.9, 0.1, 0.3, 1.0), 0.2)
+			tween.tween_property(_sprite, "modulate", Color(1.0, 0.7, 0.2, 1.0), 0.1)
+			tween.tween_property(_sprite, "modulate", Color.WHITE, 0.2)
 		if light:
 			light.energy = 1.5
 			var tween2 := create_tween()
 			tween2.tween_property(light, "energy", 0.5, 0.3)
 	else:
 		# Flash back to red toward guardian
-		if body:
+		if _sprite:
 			var tween := create_tween()
-			tween.tween_property(body, "color", Color(1.0, 0.3, 0.5, 1.0), 0.1)
-			tween.tween_property(body, "color", Color(0.9, 0.1, 0.3, 1.0), 0.2)
+			tween.tween_property(_sprite, "modulate", Color(1.0, 0.3, 0.5, 1.0), 0.1)
+			tween.tween_property(_sprite, "modulate", Color.WHITE, 0.2)
 		if light:
 			light.energy = 1.0
 			var tween2 := create_tween()

@@ -12,8 +12,6 @@ var _lock_on_timer: float = 0.0
 const LOCK_ON_DURATION: float = 0.4
 var _locked_on: bool = false
 
-@onready var _body_rect: ColorRect = $Sprite2D/Body
-
 
 func _on_ready() -> void:
 	max_hp = 2.0
@@ -22,6 +20,9 @@ func _on_ready() -> void:
 	damage_on_contact = 0.75
 	contact_cooldown = 1.0
 	target_priority = TargetPriority.COMPANION  # always — never switches
+
+	# Load rotation sprites
+	_setup_rotation_sprites("res://assets/characters/enemy_stalker/rotations/")
 
 	await get_tree().process_frame
 
@@ -38,8 +39,8 @@ func _on_ready() -> void:
 	_lock_on_timer = LOCK_ON_DURATION
 	if _light:
 		_light.energy = 2.5
-	if _body_rect:
-		_body_rect.color = Color(0.4, 0.3, 1.0, 1.0)
+	if _sprite:
+		_sprite.modulate = Color(0.4, 0.3, 1.0, 1.0)
 
 
 func _on_process(delta: float) -> void:
@@ -51,9 +52,9 @@ func _on_process(delta: float) -> void:
 			if _light:
 				var tween := create_tween()
 				tween.tween_property(_light, "energy", 0.7, 0.3)
-			if _body_rect:
+			if _sprite:
 				var tween := create_tween()
-				tween.tween_property(_body_rect, "color", Color(0.15, 0.1, 0.6, 1.0), 0.3)
+				tween.tween_property(_sprite, "modulate", Color.WHITE, 0.3)
 
 
 func _on_physics_process(_delta: float) -> void:

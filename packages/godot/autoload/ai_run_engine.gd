@@ -16,7 +16,7 @@ extends Node
 ##
 ## Exit codes: 0=pass, 1=fail
 
-enum RunMode { NONE, SMOKE, SIMULATE }
+enum RunMode { NONE, SMOKE, SIMULATE, PHONE_TEST }
 
 var mode: RunMode = RunMode.NONE
 var sim_floors: int = 3
@@ -42,7 +42,7 @@ func _ready() -> void:
 	_log("Mode: %s" % ("SMOKE" if mode == RunMode.SMOKE else "SIMULATE (%d floors, seed %d)" % [sim_floors, sim_seed]))
 	_log("")
 
-	RoomBase.HEADLESS_RUN = true
+	GameManager.headless_run = true
 	if sim_seed > 0:
 		seed(sim_seed)
 		_log("  Seed: %d" % sim_seed)
@@ -56,8 +56,9 @@ func _parse_cli_args() -> void:
 	var args := OS.get_cmdline_args()
 	for i in args.size():
 		match args[i]:
-			"--ai-smoke":    mode = RunMode.SMOKE
-			"--ai-simulate": mode = RunMode.SIMULATE
+			"--ai-smoke":     mode = RunMode.SMOKE
+			"--ai-simulate":  mode = RunMode.SIMULATE
+			"--ai-phone-test": mode = RunMode.PHONE_TEST
 			"--ai-floors":
 				if i + 1 < args.size():
 					sim_floors = maxi(1, int(args[i + 1]))
@@ -71,6 +72,16 @@ func _parse_cli_args() -> void:
 # =============================================================================
 
 func _run_engine() -> void:
+	# PHONE TEST MODE — standalone, no floor gen loop
+	if mode == RunMode.PHONE_TEST:
+		var ok := await _phase_phone_event_test()
+		if ok:
+			_print_summary(true)
+			get_tree().quit(0)
+		else:
+			get_tree().quit(1)
+		return
+
 	# START_RUN
 	var ok := await _phase_start_run()
 	if not ok: return
@@ -194,6 +205,162 @@ func _phase_advance_floor() -> bool:
 	await get_tree().process_frame
 	_kill_all_enemies()
 	assert_that(GameManager.current_floor == nxt, "floor mismatch: %d != %d" % [GameManager.current_floor, nxt])
+	return true
+
+
+func _phase_phone_event_test() -> bool:
+	"""Test the full phone event lifecycle using mock transport on PhoneManager.
+	No Ably or browser needed. Triggers events and simulates phone responses."""
+	_log("→ PHONE EVENT TEST (mock transport)")
+	_log("")
+
+	# ---- Setup ----
+	_log("  [SETUP] Starting run...")
+	GameManager.headless_run = true
+	GameManager.start_run()
+
+	await _wait_for_group("floor_hub")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_log("  ✓ Floor 1 loaded")
+
+	PhoneManager.set_mock_mode(true)
+	await get_tree().process_frame
+	_log("  ✓ Mock phone transport enabled")
+
+	PhoneManager.mock_inject_join()
+	await get_tree().process_frame
+	PhoneManager.mock_clear_outgoing()  # Discard state push + join response
+	_log("  ✓ Mock phone player joined")
+
+	var initial_hp: float = GameManager.guardian_hearts
+	_log("  Initial HP: %.1f / %.1f" % [GameManager.guardian_hearts, GameManager.guardian_max_hearts])
+	_log("")
+
+	# ----------------------------------------------------------------
+	# TEST 1: HEAL EVENT — Perfect Score (3/3)
+	# ----------------------------------------------------------------
+	_log("  [TEST 1] Heal event — perfect score")
+
+	GameManager.damage_guardian(2.0, "TEST")
+	_log("  HP after damage: %.1f" % GameManager.guardian_hearts)
+
+	PhoneManager.trigger_event("heal", 5.0)
+	await get_tree().process_frame
+
+	var msg1 := PhoneManager.mock_pop_outgoing()
+	assert_that(msg1.get("type") == "event_start", "Expected event_start, got: %s" % str(msg1))
+	assert_that(msg1.get("event") == "heal", "Expected heal event, got: %s" % str(msg1))
+	_log("  ✓ event_start/heal sent")
+
+	PhoneManager.mock_pop_outgoing()  # haptic (discard)
+
+	PhoneManager.mock_inject_event_response("heal", 3, 3)
+	await get_tree().process_frame
+
+	var result1 := PhoneManager.mock_pop_outgoing()
+	assert_that(result1.get("type") == "event_result", "Expected event_result, got: %s" % str(result1))
+	assert_that(result1.get("score") == 3, "Expected score 3, got %d" % result1.get("score"))
+	_log("  ✓ event_result/heal: score=3/3, effect='%s'" % result1.get("effect_applied", "?"))
+	assert_that(GameManager.guardian_hearts > initial_hp - 1.5, "HP should have increased, got: %.1f" % GameManager.guardian_hearts)
+	_log("  ✓ HP restored: %.1f / %.1f" % [GameManager.guardian_hearts, GameManager.guardian_max_hearts])
+	_log("")
+
+	# ----------------------------------------------------------------
+	# TEST 2: HEAL EVENT — Partial Score (1/3)
+	# ----------------------------------------------------------------
+	_log("  [TEST 2] Heal event — partial score")
+
+	GameManager.damage_guardian(2.0, "TEST")
+	PhoneManager.trigger_event("heal", 5.0)
+	await get_tree().process_frame
+	PhoneManager.mock_pop_outgoing()  # event_start
+	PhoneManager.mock_pop_outgoing()  # haptic
+
+	PhoneManager.mock_inject_event_response("heal", 1, 3)
+	await get_tree().process_frame
+	var result2 := PhoneManager.mock_pop_outgoing()
+	assert_that(result2.get("type") == "event_result", "Expected event_result, got: %s" % str(result2))
+	assert_that(result2.get("score") == 1, "Expected partial score 1, got %d" % result2.get("score"))
+	_log("  ✓ Partial heal: score=%d/%d, effect='%s'" % [
+		result2.get("score"), result2.get("max_score"),
+		result2.get("effect_applied", "?")])
+	_log("")
+
+	# ----------------------------------------------------------------
+	# TEST 3: HEAL EVENT — Zero Score / Miss
+	# ----------------------------------------------------------------
+	_log("  [TEST 3] Heal event — zero score (miss)")
+
+	GameManager.damage_guardian(1.0, "TEST")
+	PhoneManager.trigger_event("heal", 5.0)
+	await get_tree().process_frame
+	PhoneManager.mock_pop_outgoing()  # event_start
+	PhoneManager.mock_pop_outgoing()  # haptic
+
+	PhoneManager.mock_inject_event_response("heal", 0, 3)
+	await get_tree().process_frame
+	var result3 := PhoneManager.mock_pop_outgoing()
+	assert_that(result3.get("type") == "event_result", "Expected event_result, got: %s" % str(result3))
+	_log("  ✓ Zero-score heal resolved: effect='%s'" % result3.get("effect_applied", "?"))
+	_log("")
+
+	# ----------------------------------------------------------------
+	# TEST 4: CHEST UNLOCK — Success
+	# ----------------------------------------------------------------
+	_log("  [TEST 4] Chest unlock event — success")
+
+	PhoneManager.mock_pop_outgoing()  # Clear any stale
+
+	PhoneManager.trigger_event("chest_unlock", 8.0)
+	await get_tree().process_frame
+
+	var msg4 := PhoneManager.mock_pop_outgoing()
+	assert_that(msg4.get("type") == "event_start", "Expected event_start, got: %s" % str(msg4))
+	assert_that(msg4.get("event") == "chest_unlock", "Expected chest_unlock, got: %s" % str(msg4))
+	_log("  ✓ event_start/chest_unlock sent")
+
+	PhoneManager.mock_pop_outgoing()  # haptic
+
+	PhoneManager.mock_inject_event_response("chest_unlock", 1, 1)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var result4 := PhoneManager.mock_pop_outgoing()
+	assert_that(result4.get("type") == "event_result", "Expected event_result, got: %s" % str(result4))
+	assert_that(result4.get("score") == 1, "Expected score 1, got %d" % result4.get("score"))
+	_log("  ✓ Chest unlock resolved: effect='%s'" % result4.get("effect_applied", "?"))
+	_log("")
+
+	# ----------------------------------------------------------------
+	# TEST 5: EVENT CONCURRENCY GUARD
+	# ----------------------------------------------------------------
+	_log("  [TEST 5] Event concurrency guard")
+
+	PhoneManager.trigger_event("heal", 5.0)
+	await get_tree().process_frame
+	PhoneManager.mock_pop_outgoing()  # event_start
+	PhoneManager.mock_pop_outgoing()  # haptic
+
+	var blocked_at: int = PhoneManager.mock_outgoing_count()
+	PhoneManager.trigger_event("heal", 5.0)
+	await get_tree().process_frame
+	assert_that(PhoneManager.mock_outgoing_count() == blocked_at,
+		"Concurrent event should be blocked, got %d new messages" % (PhoneManager.mock_outgoing_count() - blocked_at))
+	_log("  ✓ Concurrent event correctly blocked")
+
+	# Clean up active event
+	PhoneManager.mock_inject_event_response("heal", 3, 3)
+	await get_tree().process_frame
+	PhoneManager.mock_pop_outgoing()  # event_result
+	_log("")
+
+	# ---- Done ----
+	PhoneManager.set_mock_mode(false)
+	_log("  [DONE] Mock phone disabled")
+	_log("  Initial HP: %.1f → Final HP: %.1f" % [initial_hp, GameManager.guardian_hearts])
+	_log("")
+	_log("  :: All 5 phone event lifecycle tests PASSED ::")
 	return true
 
 

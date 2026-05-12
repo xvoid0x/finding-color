@@ -182,29 +182,4 @@ func _state_to_anim(state: int, move_dir: Vector2, enemies_nearby: bool) -> Stri
 # =============================================================================
 
 func _vector_to_direction(vec: Vector2) -> String:
-	if vec.length() < 0.1:
-		return _current_dir  # Keep last direction
-
-	var angle := vec.angle()  # Radians, 0 = right (east)
-	# Convert to degrees, normalise to 0-360
-	var deg := fmod(rad_to_deg(angle) + 360.0, 360.0)
-
-	# 8 directions, each 45° wide, offset by 22.5°
-	# East=0°, South-East=45°, South=90°, South-West=135°
-	# West=180°, North-West=225°, North=270°, North-East=315°
-	if deg < 22.5 or deg >= 337.5:
-		return "east"
-	elif deg < 67.5:
-		return "south-east"
-	elif deg < 112.5:
-		return "south"
-	elif deg < 157.5:
-		return "south-west"
-	elif deg < 202.5:
-		return "west"
-	elif deg < 247.5:
-		return "north-west"
-	elif deg < 292.5:
-		return "north"
-	else:
-		return "north-east"
+	return DirectionUtils.vector_to_direction(vec, _current_dir)

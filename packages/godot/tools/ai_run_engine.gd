@@ -16,7 +16,7 @@ extends Node
 ##
 ## Exit codes: 0=pass, 1=fail, 2=crash
 
-enum RunMode { SMOKE, SIMULATE }
+enum RunMode { SMOKE, SIMULATE, PHONE_TEST }
 
 # --- Configuration ---
 var mode: RunMode = RunMode.SMOKE
@@ -65,6 +65,7 @@ func _parse_cli_args() -> void:
 				if i + 1 < args.size():
 					match args[i + 1]:
 						"simulate": mode = RunMode.SIMULATE
+						"phone": mode = RunMode.PHONE_TEST
 			"--ai-floors":
 				if i + 1 < args.size():
 					sim_floors = maxi(1, int(args[i + 1]))
@@ -78,6 +79,18 @@ func _parse_cli_args() -> void:
 # =============================================================================
 
 func _run_engine() -> void:
+	# Handle PHONE_TEST mode (standalone, no floor generation needed)
+	if mode == RunMode.PHONE_TEST:
+		_engine_tree.set_auto_accept_quit(false)
+		var ok := await _phase_phone_event_test()
+		if ok:
+			_print_summary(true)
+			_engine_tree.quit(0)
+		else:
+			_print_summary(false)
+			_engine_tree.quit(1)
+		return
+
 	# Phase: START_RUN
 	var ok := await _phase_start_run()
 	if not ok: return
@@ -300,6 +313,197 @@ func _phase_advance_floor() -> bool:
 # =============================================================================
 # Phase: SMOKE TEST — VERIFY FLOOR 2
 # =============================================================================
+
+func _phase_phone_event_test() -> bool:
+	"""Test the full phone event lifecycle using mock transport.
+	
+	Runs standalone: starts a run, enables PhoneManager mock mode,
+	triggers events, injects mock phone responses, verifies effects.
+	No Ably connection or real browser needed.
+	"""
+	_log("→ PHONE EVENT TEST")
+	_log("")
+	
+	# ---- Setup ----
+	_log("  [SETUP] Starting run...")
+	RoomBase.HEADLESS_RUN = true
+	GameManager.start_run()
+	
+	await _wait_for_scene("floor_hub")
+	await _engine_tree.process_frame
+	await _engine_tree.process_frame
+	_log("  ✓ Floor 1 loaded")
+	
+	PhoneManager.set_mock_mode(true)
+	await _engine_tree.process_frame
+	_log("  ✓ Mock phone transport enabled")
+	
+	PhoneManager.mock_inject_join()
+	await _engine_tree.process_frame
+	_log("  ✓ Mock phone player joined")
+	
+	var initial_hp: float = GameManager.guardian_hearts
+	_log("  Initial HP: %.1f / %.1f" % [GameManager.guardian_hearts, GameManager.guardian_max_hearts])
+	_log("")
+	
+	# ----------------------------------------------------------------
+	# TEST 1: HEAL EVENT — Perfect Score (3/3)
+	# ----------------------------------------------------------------
+	_log("  [TEST 1] Heal event — perfect score")
+	
+	# Damage guardian so healing matters
+	GameManager.damage_guardian(2.0, "TEST")
+	_log("  HP after damage: %.1f" % GameManager.guardian_hearts)
+	
+	PhoneManager.trigger_event("heal", 5.0)
+	await _engine_tree.process_frame
+	
+	var msg1 := PhoneManager.mock_pop_outgoing()
+	if msg1.get("type") != "event_start" or msg1.get("event") != "heal":
+		return _fail("Expected event_start/heal, got: %s" % JSON.stringify(msg1))
+	_log("  ✓ event_start/heal sent")
+	
+	# Pop the haptic message too
+	var haptic_msg := PhoneManager.mock_pop_outgoing()
+	if haptic_msg.get("type") != "haptic":
+		return _fail("Expected haptic after event_start, got: %s" % JSON.stringify(haptic_msg))
+	_log("  ✓ haptic sent")
+	
+	# Inject perfect phone response
+	PhoneManager.mock_inject_event_response("heal", 3, 3)
+	await _engine_tree.process_frame
+	
+	# Verify event_result sent
+	var result_msg1 := PhoneManager.mock_pop_outgoing()
+	if result_msg1.get("type") != "event_result" or result_msg1.get("event") != "heal":
+		return _fail("Expected event_result/heal, got: %s" % JSON.stringify(result_msg1))
+	if result_msg1.get("score") != 3 or result_msg1.get("max_score") != 3:
+		return _fail("Expected score 3/3, got %d/%d" % [result_msg1.get("score"), result_msg1.get("max_score")])
+	_log("  ✓ event_result/heal: score=3/3, effect='%s'" % result_msg1.get("effect_applied", "?"))
+	
+	# Verify HP was restored (perfect heal = 1.0 hearts)
+	if GameManager.guardian_hearts < initial_hp - 1.5:
+		return _fail("Heal should have restored ~1.0 HP, got: %.1f" % GameManager.guardian_hearts)
+	_log("  ✓ HP restored: %.1f / %.1f" % [GameManager.guardian_hearts, GameManager.guardian_max_hearts])
+	_log("")
+	
+	# ----------------------------------------------------------------
+	# TEST 2: HEAL EVENT — Partial Score (1/3)
+	# ----------------------------------------------------------------
+	_log("  [TEST 2] Heal event — partial score (1/3)")
+	
+	GameManager.damage_guardian(2.0, "TEST")
+	var hp_before_partial: float = GameManager.guardian_hearts
+	
+	PhoneManager.trigger_event("heal", 5.0)
+	await _engine_tree.process_frame
+	
+	PhoneManager.mock_pop_outgoing()  # event_start
+	PhoneManager.mock_pop_outgoing()  # haptic
+	
+	# Inject partial score
+	PhoneManager.mock_inject_event_response("heal", 1, 3)
+	await _engine_tree.process_frame
+	
+	var result_msg2 := PhoneManager.mock_pop_outgoing()
+	if result_msg2.get("score") != 1:
+		return _fail("Expected partial score 1, got %d" % result_msg2.get("score"))
+	_log("  ✓ Partial heal resolved: score=%d/%d, effect='%s'" % [
+		result_msg2.get("score"), result_msg2.get("max_score"),
+		result_msg2.get("effect_applied", "?")])
+	_log("")
+	
+	# ----------------------------------------------------------------
+	# TEST 3: HEAL EVENT — Zero Score (0/3 - timeout or miss)
+	# ----------------------------------------------------------------
+	_log("  [TEST 3] Heal event — zero score (miss)")
+	
+	GameManager.damage_guardian(1.0, "TEST")
+	
+	PhoneManager.trigger_event("heal", 5.0)
+	await _engine_tree.process_frame
+	
+	PhoneManager.mock_pop_outgoing()  # event_start
+	PhoneManager.mock_pop_outgoing()  # haptic
+	
+	PhoneManager.mock_inject_event_response("heal", 0, 3)
+	await _engine_tree.process_frame
+	
+	var result_msg3 := PhoneManager.mock_pop_outgoing()
+	if result_msg3.get("type") != "event_result":
+		return _fail("Expected event_result for zero-score heal")
+	_log("  ✓ Zero-score heal resolved: effect='%s'" % result_msg3.get("effect_applied", "?"))
+	_log("")
+	
+	# ----------------------------------------------------------------
+	# TEST 4: CHEST UNLOCK — Perfect Score
+	# ----------------------------------------------------------------
+	_log("  [TEST 4] Chest unlock event — success")
+	
+	# Clear the outgoing queue first
+	PhoneManager.mock_pop_outgoing()
+	
+	PhoneManager.trigger_event("chest_unlock", 8.0)
+	await _engine_tree.process_frame
+	
+	var msg4 := PhoneManager.mock_pop_outgoing()
+	if msg4.get("type") != "event_start" or msg4.get("event") != "chest_unlock":
+		return _fail("Expected event_start/chest_unlock, got: %s" % JSON.stringify(msg4))
+	_log("  ✓ event_start/chest_unlock sent")
+	
+	# Pop haptic
+	PhoneManager.mock_pop_outgoing()
+	
+	# Inject success response — companion should be freed
+	PhoneManager.mock_inject_event_response("chest_unlock", 1, 1)
+	await _engine_tree.process_frame
+	await _engine_tree.process_frame
+	
+	var result_msg4 := PhoneManager.mock_pop_outgoing()
+	if result_msg4.get("type") != "event_result":
+		return _fail("Expected event_result/chest_unlock, got: %s" % JSON.stringify(result_msg4))
+	if result_msg4.get("score") != 1:
+		return _fail("Expected chest_unlock score 1, got %d" % result_msg4.get("score"))
+	_log("  ✓ Chest unlock resolved: effect='%s'" % result_msg4.get("effect_applied", "?"))
+	_log("")
+	
+	# ----------------------------------------------------------------
+	# TEST 5: EVENT CONCURRENCY GUARD — Block new event while active
+	# ----------------------------------------------------------------
+	_log("  [TEST 5] Event concurrency guard")
+	
+	PhoneManager.trigger_event("heal", 5.0)
+	await _engine_tree.process_frame
+	PhoneManager.mock_pop_outgoing()  # event_start
+	PhoneManager.mock_pop_outgoing()  # haptic
+	
+	# Try to trigger a second event while first is active — should be blocked
+	var blocked_at: int = PhoneManager.mock_outgoing_count()
+	PhoneManager.trigger_event("heal", 5.0)
+	await _engine_tree.process_frame
+	
+	if PhoneManager.mock_outgoing_count() != blocked_at:
+		return _fail("Second trigger should not send any messages (blocked), got %d outgoing" % PhoneManager.mock_outgoing_count())
+	_log("  ✓ Concurrent event correctly blocked")
+	
+	# Resolve the first event to clean up
+	PhoneManager.mock_inject_event_response("heal", 3, 3)
+	await _engine_tree.process_frame
+	PhoneManager.mock_pop_outgoing()  # event_result
+	_log("")
+	
+	# ----------------------------------------------------------------
+	# CLEANUP
+	# ----------------------------------------------------------------
+	PhoneManager.set_mock_mode(false)
+	_log("  [DONE] Mock phone disabled")
+	
+	_log("  Initial HP:  %.1f" % initial_hp)
+	_log("  Final HP:    %.1f" % GameManager.guardian_hearts)
+	_log("")
+	_log("  :: All 5 phone event tests PASSED ::")
+	return true
+
 
 func _phase_verify_floor_2() -> bool:
 	_log("→ SMOKE: VERIFY FLOOR 2")

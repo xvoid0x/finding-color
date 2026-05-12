@@ -6,11 +6,13 @@ on:
     paths:
       - 'packages/godot/**'
       - 'packages/shared/**'
+      - 'packages/phone/**'
   pull_request:
     branches: [main]
     paths:
       - 'packages/godot/**'
       - 'packages/shared/**'
+      - 'packages/phone/**'
   workflow_dispatch:
     inputs:
       mode:
@@ -30,7 +32,26 @@ on:
         default: 0
 
 jobs:
-  smoke-test:
+  phone-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.8'
+
+      - name: Install Dependencies
+        run: |
+          bun install --frozen-lockfile
+
+      - name: Phone Unit Tests
+        run: |
+          bun run --filter=phone test
+
+  godot-smoke-test:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.mode == 'smoke' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -45,6 +66,10 @@ jobs:
       - name: Smoke Test
         run: |
           godot --headless --path packages/godot --ai-smoke
+
+      - name: Phone Event Lifecycle Test
+        run: |
+          godot --headless --path packages/godot --ai-phone-test
 
   simulate:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'simulate' }}
@@ -78,7 +103,6 @@ jobs:
 
       - name: Check GDScript Syntax
         run: |
-          # Check all .gd files for parse errors
           for f in $(find packages/godot -name '*.gd' -not -path '*/addons/*'); do
             echo "Checking: $f"
             godot --headless --path packages/godot --check-only --script "$f" 2>&1 | \

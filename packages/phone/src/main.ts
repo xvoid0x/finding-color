@@ -4,24 +4,50 @@ import { LobbyScene } from './scenes/LobbyScene'
 import { GameScene } from './scenes/GameScene'
 import { HealScene } from './scenes/HealScene'
 import { ChestScene } from './scenes/ChestScene'
+import { ablyManager } from './lib/ably'
+import { mockAblyManager } from './lib/mock-ably'
 
 /**
  * Finding Colour -- Phone App
  * Phaser 3 game running in mobile browser.
  * Connects to Godot via Ably relay using room code.
+ *
+ * Test mode: add ?mock=true to URL to use in-memory mock transport.
+ * Exposes mockAblyManager globally for Playwright injection.
  */
 
-// Landscape layout: wider than tall.
-// On mobile, use full screen dimensions (landscape lock handled via CSS/manifest).
-// On desktop browser (second player on PC), use a sensible landscape window.
-// Use a fixed logical resolution in landscape.
-// Phaser Scale.FIT will letterbox/fit to the actual screen.
-// This avoids dimension issues when phone loads in portrait.
+const params = new URLSearchParams(window.location.search)
+const mockMode = params.get('mock') === 'true'
+
+// In mock mode, monkey-patch the real ablyManager's methods with mock versions.
+// Scenes import `ablyManager` directly and work unchanged.
+if (mockMode) {
+  const ma = mockAblyManager
+  const ra = ablyManager as typeof ablyManager & Record<string, unknown>
+  ra.connect = ma.connect.bind(ma)
+  ra.disconnect = ma.disconnect.bind(ma)
+  ra.reconnect = ma.reconnect.bind(ma)
+  ra.send = ma.send.bind(ma)
+  ra.onMessage = ma.onMessage.bind(ma)
+  ra.onDisconnect = ma.onDisconnect.bind(ma)
+  ra.onReconnect = ma.onReconnect.bind(ma)
+  ra.getPeerId = ma.getPeerId.bind(ma)
+  ra.isConnected = ma.isConnected.bind(ma)
+}
+
+if (mockMode) {
+  ;(window as unknown as Record<string, unknown>).__phoneTest = {
+    injectMessage: mockAblyManager.injectMessage.bind(mockAblyManager),
+    drainOutgoing: mockAblyManager.drainOutgoing.bind(mockAblyManager),
+    reset: mockAblyManager.reset.bind(mockAblyManager),
+  }
+}
+
 const W = 800
 const H = 400
 
 const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.CANVAS,  // Force canvas — WebGL context fails silently on some mobile browsers
+  type: Phaser.CANVAS,
   width: W,
   height: H,
   backgroundColor: '#07050f',
@@ -40,12 +66,12 @@ const config: Phaser.Types.Core.GameConfig = {
     ChestScene,
   ],
   render: {
-    pixelArt: false,  // phone UI uses smooth rendering
+    pixelArt: false,
     antialias: true,
   },
   input: {
-    activePointers: 4,  // support multi-touch
+    activePointers: 4,
   },
 }
 
-new Phaser.Game(config)
+const game = new Phaser.Game(config)
